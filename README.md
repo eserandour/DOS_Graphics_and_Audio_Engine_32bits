@@ -82,7 +82,6 @@ DOS_Graphics_and_Audio_Engine_32bits/
 │
 ├── BUILD.BAT             Compilation (wcc386 + wlink)
 ├── CLEAN.BAT / CLEANALL.BAT  Nettoyage des fichiers générés
-├── LINK.RSP              Script d'édition de liens (DOS/32A)
 └── LICENSE               GNU GPL v3
 ```
 
@@ -127,8 +126,6 @@ Compile chaque module avec `wcc386 -3s -mf -os -I.` (instructions 386, modèle f
 CLEAN.BAT       REM supprime .obj / .out / .err
 CLEANALL.BAT    REM idem + supprime aussi demo.exe
 ```
-
-> `LINK.RSP` explicite les directives DOS/32A (format `OS2 LE`, stub `stub32a.exe`). Si votre installation Watcom reconnaît déjà le système `STUB32A`, `LINK.RSP` peut être réduit à la ligne `SYSTEM STUB32A`.
 
 ## Exécution
 
