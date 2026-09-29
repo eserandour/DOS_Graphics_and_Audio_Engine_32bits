@@ -5,15 +5,8 @@
 #include "timer.h"
 #include "scene.h"
 
-void scene0(void);
-void scene1(void);
-void scene2(void);
-void scene3(void);
-void scene4(void);
-void scene5(void);
-void scene6(void);
-void scene7(void);
-void scene8(void);
+/* Prototypes des scenes : fichier genere par BUILD.BAT */
+#include "scenedcl.h"
 
 Scene currentScene = SCENE_0;
 unsigned long sceneStart = 0;
@@ -21,17 +14,12 @@ SceneEndHandler onSceneEnd = 0;   /* NULL par défaut — à brancher dans main.
 
 typedef void (*SceneFunc)(void);
 
+/* Table des scenes : entrees generees par BUILD.BAT */
 static SceneFunc scenes[] = {
-    scene0,
-    scene1,
-    scene2,
-    scene3,
-    scene4,
-    scene5,
-    scene6,
-    scene7,
-    scene8,
+#include "scenetab.h"
 };
+
+#define NB_SCENES_LINKED (sizeof(scenes) / sizeof(scenes[0]))
 
 void setScene(Scene s)
 {
@@ -41,7 +29,8 @@ void setScene(Scene s)
 
 void runCurrentScene(void)
 {
-    scenes[currentScene]();
+    if ((unsigned) currentScene < NB_SCENES_LINKED)
+        scenes[currentScene]();
 }
 
 void sceneSignalEnd(void)
