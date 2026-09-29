@@ -70,7 +70,7 @@ DOS_Graphics_and_Audio_Engine_32bits/
 ├── s3m.c / s3m.h         Lecteur de modules musicaux .s3m
 ├── wav.c / wav.h         Chargement et mixage d'effets .wav
 │
-├── scene.c / scene.h     Gestionnaire de scènes (playlist, transitions)
+├── scene.c / scene.h     Gestionnaire de scènes (enum SCENE_0 … SCENE_99, playlist, transitions)
 ├── scenes/               Scènes (scene0.c … scene8.c fournies, jusqu'à scene99.c)
 │
 ├── font1/                Données des polices bitmap personnelles
@@ -201,15 +201,15 @@ int main(void)
 
 Ordre et bouclage définis par le tableau `playlist[]` dans `main.c`.
 
-Une scène est identifiée par son numéro (type `Scene`, un simple `int`). On la désigne par la macro `SCENE(n)` (ex. `SCENE(12)`) ; les anciens noms `SCENE_0` à `SCENE_8` restent disponibles.
+Une scène est désignée par une constante de l'énumération `Scene` déclarée dans `scene.h` : `SCENE_0` à `SCENE_99`, qui correspondent à `scenes\scene0.c` à `scenes\scene99.c`.
 
 ## Ajouter une scène
 
 1. Créer `scenes\sceneN.c` (N entre 0 et 99) contenant une fonction `void sceneN(void)`, appelée à chaque image, qui appelle `sceneSignalEnd()` quand la scène est terminée (voir `scene1.c` comme modèle).
-2. L'ajouter à la playlist dans `main.c`, avec `SCENE(N)`.
+2. L'ajouter à la playlist dans `main.c`, avec la constante `SCENE_N` correspondante.
 3. Relancer `BUILD.BAT`.
 
-Il n'y a rien à modifier dans `scene.c`, `scene.h` ni `LINK.RSP` : la scène est détectée, compilée, déclarée et liée automatiquement.
+Il n'y a rien à modifier dans `scene.c`, `scene.h` ni `LINK.RSP` : la scène est détectée, compilée, déclarée et liée automatiquement. Les constantes `SCENE_0` à `SCENE_99` existent déjà dans `scene.h`.
 
 > **Attention** — les scènes doivent être numérotées **sans trou** (0, 1, 2, … N-1). La table des scènes est remplie dans l'ordre des fichiers trouvés : un `scene5.c` manquant décalerait toutes les scènes suivantes.
 
@@ -225,7 +225,7 @@ Il n'y a rien à modifier dans `scene.c`, `scene.h` ni `LINK.RSP` : la scène es
 - Mode 13h uniquement (320×200, 256 couleurs).
 - Lecteur S3M partiel : vitesse, tempo, sauts, volume, glissements de volume, portamento (par pas et tone portamento), vibrato, arpège et offset sont supportés ; tremolo, tremor, retrig et panning sont ignorés (la note se déclenche quand même) ; voir l'en-tête de `s3m.h` pour le détail exact.
 - Jusqu'à `S3M_MAX_CHANNELS` (16) voies mixées et `WAV_MAX_VOICES` (4) effets simultanés.
-- 100 scènes au maximum (`scene0.c` à `scene99.c`), numérotées sans trou.
+- 100 scènes au maximum (`scene0.c` à `scene99.c`, limite fixée par l'`enum` de `scene.h` et par les listes de `BUILD.BAT`), numérotées sans trou.
 - `BUILD.BAT` recompile tout à chaque exécution et, sous DOS, ses lignes de commande sont limitées à 127 caractères (d'où les boucles par groupes de 10 scènes).
 - Testé uniquement avec Open Watcom 1.9 + DOS/32A.
 
