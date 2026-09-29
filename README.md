@@ -1,10 +1,10 @@
 # DOS Graphics & Audio Engine (32 bits)
 
-*Dernière version : 10/08/2026 à 22h50*
+*Dernière version : 29/09/2026*
 
 Moteur graphique et audio pour **DOS**, écrit en C ANSI avec **Open Watcom 1.9**, mode VGA **13h** (320×200, 256 couleurs) et carte **Sound Blaster** (ou compatible), en modèle mémoire **flat 32 bits** (DOS/32A).
 
-Accès direct au matériel PC (VRAM, PIT, clavier, DMA/DSP), sans dépendance à une bibliothèque graphique ou audio tierce. Une playlist de 9 scènes de démonstration (`scenes/`) illustre l'ensemble des modules : palette, polices bitmap, primitives 2D, rotozoom, musique tracker S3M...
+Accès direct au matériel PC (VRAM, PIT, clavier, DMA/DSP), sans dépendance à une bibliothèque graphique ou audio tierce. Une playlist de scènes de démonstration (`scenes/`, 9 fournies, jusqu'à 100 gérées) illustre l'ensemble des modules : palette, polices bitmap, primitives 2D, rotozoom, musique tracker S3M...
 
 <p align="center">
   <img src="CAPTURES/demo_009.png" width="45%" alt="Police bitmap 16x16">
@@ -27,6 +27,7 @@ Accès direct au matériel PC (VRAM, PIT, clavier, DMA/DSP), sans dépendance à
 - [Exécution](#exécution)
 - [Exemple minimal](#exemple-minimal)
 - [Scènes de démonstration](#scènes-de-démonstration)
+- [Ajouter une scène](#ajouter-une-scène)
 - [Outils annexes (OUTILS/)](#outils-annexes-outils)
 - [Limites connues](#limites-connues)
 - [Licence](#licence)
@@ -44,7 +45,7 @@ Accès direct au matériel PC (VRAM, PIT, clavier, DMA/DSP), sans dépendance à
 - **Timer haute résolution** — reprogrammation du PIT à 70 Hz, avec chaînage vers l'ISR BIOS d'origine pour ne pas casser l'horloge DOS.
 - **Clavier** — détection bas niveau de la touche Échap via l'interruption 09h.
 - **Audio** — pilote Sound Blaster bas niveau (détection `BLASTER`, DSP, DMA en boucle auto-init sans clic), lecteur de modules **S3M** (vitesse, tempo, volumes, glissements, portamento, vibrato, arpège, offset) et mixeur d'effets **WAV** (8/16 bits, mono/stéréo, rééchantillonnage à la volée), mixage effectué hors interruption.
-- **Gestionnaire de scènes** — chaque scène gère son propre minutage et signale sa fin ; l'enchaînement (playlist, bouclage) est décidé par `main.c`.
+- **Gestionnaire de scènes** — jusqu'à 100 scènes (`scene0.c` à `scene99.c`), détectées et enregistrées automatiquement à la compilation. Chaque scène gère son propre minutage et signale sa fin ; l'enchaînement (playlist, bouclage) est décidé par `main.c`.
 
 ## Structure du dépôt
 
@@ -70,7 +71,7 @@ DOS_Graphics_and_Audio_Engine_32bits/
 ├── wav.c / wav.h         Chargement et mixage d'effets .wav
 │
 ├── scene.c / scene.h     Gestionnaire de scènes (playlist, transitions)
-├── scenes/               9 scènes de démonstration (scene0.c … scene8.c)
+├── scenes/               Scènes (scene0.c … scene8.c fournies, jusqu'à scene99.c)
 │
 ├── font1/                Données des polices bitmap personnelles
 ├── font2/                Feuilles de sprites de police + palettes
@@ -80,9 +81,14 @@ DOS_Graphics_and_Audio_Engine_32bits/
 │
 ├── OUTILS/               Scripts Python de conversion d'assets
 │
-├── BUILD.BAT             Compilation (wcc386 + wlink)
+├── BUILD.BAT             Compilation (wcc386 + wlink), génère les 3 fichiers ci-dessous
 ├── CLEAN.BAT / CLEANALL.BAT  Nettoyage des fichiers générés
 └── LICENSE               GNU GPL v3
+
+Fichiers générés par BUILD.BAT (ne pas modifier à la main) :
+├── LINK.RSP              Script d'édition de liens (DOS/32A)
+├── SCENEDCL.H            Prototypes des scènes présentes (inclus par scene.c)
+└── SCENETAB.H            Entrées du tableau des scènes (inclus par scene.c)
 ```
 
 ## Modules
@@ -102,7 +108,7 @@ DOS_Graphics_and_Audio_Engine_32bits/
 | `s3m` | Lecteur de modules musicaux | — |
 | `wav` | Mixeur d'effets sonores | — |
 | `audio` | Orchestrateur audio | `sblaster`, `s3m`, `wav` |
-| `scene` | Enchaînement des scènes | `timer` |
+| `scene` | Enchaînement des scènes | `timer`, `SCENEDCL.H`, `SCENETAB.H` (générés) |
 
 Chaque `.h` documente en tête de fichier le format de données et les conventions d'usage du module correspondant.
 
@@ -116,16 +122,27 @@ Chaque `.h` documente en tête de fichier le format de données et les conventio
 
 ## Compilation
 
+Depuis une invite DOS (DOSBox, DOSBox-X, DOS réel), dans le répertoire du projet :
+
 ```bat
 BUILD.BAT
 ```
 
-Compile chaque module avec `wcc386 -3s -mf -os -I.` (instructions 386, modèle flat, optimisation taille), puis lie via `wlink @LINK.RSP` pour produire `demo.exe`.
+Aucun paramètre. `BUILD.BAT` est écrit en batch DOS pur (compatible `COMMAND.COM` : pas de `set /a`, de `for /L` ni de `||`) et enchaîne :
+
+1. la génération de `LINK.RSP`, `SCENEDCL.H` et `SCENETAB.H` d'après les fichiers `scenes\scene0.c` à `scenes\scene99.c` **présents** ;
+2. la compilation de chaque module avec `wcc386 -3s -mf -os -I.` (instructions 386, modèle flat, optimisation taille) ;
+3. la compilation de chaque scène détectée ;
+4. l'édition de liens `wlink @LINK.RSP`, qui produit `demo.exe`.
+
+La compilation s'arrête à la première erreur sur les modules fixes. Pour une scène qui ne compile pas, lire les messages à l'écran (le lien échouera ensuite sur le `.obj` manquant).
 
 ```bat
 CLEAN.BAT       REM supprime .obj / .out / .err
 CLEANALL.BAT    REM idem + supprime aussi demo.exe
 ```
+
+> `LINK.RSP` explicite les directives DOS/32A (format `OS2 LE`, stub `stub32a.exe`). Il est **regénéré à chaque build** : pour changer ces directives (par exemple pour utiliser `SYSTEM STUB32A`, si votre installation Watcom reconnaît ce système), modifier les lignes `echo` correspondantes de `BUILD.BAT`.
 
 ## Exécution
 
@@ -184,6 +201,18 @@ int main(void)
 
 Ordre et bouclage définis par le tableau `playlist[]` dans `main.c`.
 
+Une scène est identifiée par son numéro (type `Scene`, un simple `int`). On la désigne par la macro `SCENE(n)` (ex. `SCENE(12)`) ; les anciens noms `SCENE_0` à `SCENE_8` restent disponibles.
+
+## Ajouter une scène
+
+1. Créer `scenes\sceneN.c` (N entre 0 et 99) contenant une fonction `void sceneN(void)`, appelée à chaque image, qui appelle `sceneSignalEnd()` quand la scène est terminée (voir `scene1.c` comme modèle).
+2. L'ajouter à la playlist dans `main.c`, avec `SCENE(N)`.
+3. Relancer `BUILD.BAT`.
+
+Il n'y a rien à modifier dans `scene.c`, `scene.h` ni `LINK.RSP` : la scène est détectée, compilée, déclarée et liée automatiquement.
+
+> **Attention** — les scènes doivent être numérotées **sans trou** (0, 1, 2, … N-1). La table des scènes est remplie dans l'ordre des fichiers trouvés : un `scene5.c` manquant décalerait toutes les scènes suivantes.
+
 ## Outils annexes (OUTILS/)
 
 - **`vgatool.py`** — convertit une image en `.raw` + `.pal`, ou visualise une palette existante.
@@ -196,6 +225,8 @@ Ordre et bouclage définis par le tableau `playlist[]` dans `main.c`.
 - Mode 13h uniquement (320×200, 256 couleurs).
 - Lecteur S3M partiel : vitesse, tempo, sauts, volume, glissements de volume, portamento (par pas et tone portamento), vibrato, arpège et offset sont supportés ; tremolo, tremor, retrig et panning sont ignorés (la note se déclenche quand même) ; voir l'en-tête de `s3m.h` pour le détail exact.
 - Jusqu'à `S3M_MAX_CHANNELS` (16) voies mixées et `WAV_MAX_VOICES` (4) effets simultanés.
+- 100 scènes au maximum (`scene0.c` à `scene99.c`), numérotées sans trou.
+- `BUILD.BAT` recompile tout à chaque exécution et, sous DOS, ses lignes de commande sont limitées à 127 caractères (d'où les boucles par groupes de 10 scènes).
 - Testé uniquement avec Open Watcom 1.9 + DOS/32A.
 
 ## Licence
