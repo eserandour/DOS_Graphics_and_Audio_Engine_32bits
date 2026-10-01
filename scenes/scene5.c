@@ -37,7 +37,16 @@
    NOTE C89 (Open Watcom)
    ----------------------
    Toutes les déclarations en tête de bloc ou au niveau fichier.
+
+   TIMER — scène basée sur scene_template.c (voir ce fichier pour
+   les règles) : tout le minutage est en ticks (70 Hz).
+   Durée : déduite des constantes (PART_A + TRANSITION + PART_B
+   ticks). Les positions des scrollers dépendent de elapsed.
    ========================================================= */
+
+
+
+
 
 #include "video.h"
 #include "palette.h"
@@ -47,6 +56,10 @@
 #include "scene.h"
 #include "app.h"
 #include <conio.h>   /* outp */
+
+
+
+
 
 /* =========================================================
    TEXTES
@@ -70,58 +83,90 @@ static const char *vlines[] = {
 };
 #define VLINES_COUNT  ((int)(sizeof(vlines) / sizeof(vlines[0])))
 
-/* =========================================================
-   PARAMETRES
-   ========================================================= */
 
-/* Partie A — horizontal
-   On travaille en ticks timer (70 Hz) plutôt qu'en ms pour
-   éviter la saccade causée par la division entière :
-   à 20 ms/pixel et un tick de ~14 ms, steps alternait
-   entre 0 et 1, ce qui donnait un défilement irrégulier.
-   1 pixel tous les HSCROLL_TICKS ticks = débit constant.
-   HSCROLL_TICKS = 2 → 35 px/s  (défilement lent, lisible)
-   HSCROLL_TICKS = 1 → 70 px/s  (défilement rapide)       */
-#define HSCROLL_TICKS     2UL
-#define SCROLL_BG_COLOR    0
-#define SCROLL_BAR_COLOR   8
-#define SCROLL_BAR_H       2
 
-/* Transition */
-#define FADE_MS           600UL
+
+
+/* ---------------------------------------------------------
+   Réglages de la scène
+   --------------------------------------------------------- */
+/* Police : FONT2_DESC_16X16_F2 (cellules 16x16). Ces deux valeurs
+   servent à calculer la durée de la scène à la compilation ; Init
+   vérifie qu'elles correspondent à la police réellement chargée. */
+#define FONT_W   16UL
+#define FONT_H   16UL
+
+/* Débit des scrollers : 1 pixel tous les N ticks (débit constant,
+   sans division entière sur des ms).
+   2 ticks = 35 px/s (lent, lisible) ; 1 tick = 70 px/s (rapide).
+   VSCROLL_TICKS remplace l'ancien VSCROLL_SPEED_MS = 30 ms/pixel
+   (2,1 ticks, que la division entière ramenait de fait à 2). */
+#define HSCROLL_TICKS    2UL
+#define VSCROLL_TICKS    2UL
+#define SCROLL_BG_COLOR   0
+#define SCROLL_BAR_COLOR  8
+#define SCROLL_BAR_H      2
+
+/* Transition A -> B : fondu sortant */
+#define TRANSITION_MS    600UL
+#define TRANSITION_TICKS MS_TO_TICKS(TRANSITION_MS)
 
 /* Partie B — vertical */
-#define VSCROLL_SPEED_MS  30UL    /* ms par pixel */
-#define VSCROLL_BG_COLOR   0
-#define VSCROLL_WIN_W    240      /* largeur de la fenêtre texte (px) */
+#define VSCROLL_BG_COLOR  0
+#define VSCROLL_WIN_W   240      /* largeur de la fenêtre texte (px) */
 
-/* =========================================================
-   ETAT DE LA MACHINE A ETATS
-   =========================================================
-   state = 0 : partie A (scroll horizontal)
-   state = 1 : fondu sortant A→B
-   state = 2 : partie B (scroll vertical)
-   ========================================================= */
-static int           state       = 0;
-static int           initialized = 0;
+/* Durée de la scène : déduite des constantes ci-dessus.
+   A : un passage complet du ruban ; B : de "sous l'écran" jusqu'à
+   ce que la dernière ligne ait quitté le haut. */
+#define HSCROLL_LEN   ((unsigned long)(sizeof(HSCROLL_TEXT) - 1))
+#define PART_A_TICKS  (HSCROLL_LEN * FONT_W * HSCROLL_TICKS)
+#define PART_B_TICKS  (((unsigned long)SCREEN_HEIGHT + \
+                        (unsigned long)VLINES_COUNT * FONT_H) * VSCROLL_TICKS)
+#define SCENE_TICKS   (PART_A_TICKS + TRANSITION_TICKS + PART_B_TICKS)
+
+/* Le gabarit raisonne en ms : conversion aller-retour sans perte
+   (l'erreur de troncature est < 1 ms, soit < 0,07 tick). */
+#define SCENE_MS      ((SCENE_TICKS) * 1000UL / TARGET_HZ)
+#define FADE_IN_MS      0UL   /* intro/outro : voir PART_A, TRANSITION, PART_B */
+#define FADE_OUT_MS     0UL
+
+/* 1 tick : le fondu sort au rythme du timer ; le scrolling, lui, ne
+   redessine que lorsque sa position change (tous les N ticks). */
+#define FRAME_TICKS     1UL
+
+/* ms -> ticks, arrondi ; minimum 1 tick, sauf 0 ms qui reste 0 tick
+   (= phase supprimée, ex. FADE_IN_MS 0UL). Ne pas modifier. */
+#define MS_TO_TICKS(ms) \
+    ((ms) == 0UL ? 0UL : \
+     ((((ms) * TARGET_HZ + 500UL) / 1000UL) ? (((ms) * TARGET_HZ + 500UL) / 1000UL) : 1UL))
+
+
+
+
+
+/* ---------------------------------------------------------
+   Variables propres à la scène
+   --------------------------------------------------------- */
+static int           partB       = 0;      /* 0 = partie A (+ fondu), 1 = partie B */
 
 /* --- Partie A --- */
-static Font2Desc     hFont     = FONT2_DESC_16X16_F2;
-static long          scrollX   = 0;
-static unsigned long lastH     = 0;
-static long          rubanW    = 0;
-static int           hTextLen  = 0;
-static int           textY     = 0;        /* Y de la ligne de texte H */
-
-/* --- Transition --- */
-static unsigned long fadeStart = 0;
+static Font2Desc     hFont       = FONT2_DESC_16X16_F2;
+static long          scrollX     = 0;
+static long          lastScrollX = -1L;    /* dernière position dessinée */
+static long          rubanW      = 0;
+static int           hTextLen    = 0;
+static int           textY       = 0;      /* Y de la ligne de texte H */
 
 /* --- Partie B --- */
-static Font2Desc     vFont     = FONT2_DESC_16X16_F2;
-static long          scrollY   = 0;        /* pixels déjà remontés */
-static unsigned long lastV     = 0;
-static long          rubanH    = 0;        /* hauteur totale du ruban */
-static int           vWinX     = 0;        /* X gauche de la fenêtre  */
+static Font2Desc     vFont       = FONT2_DESC_16X16_F2;
+static long          scrollY     = 0;      /* pixels déjà remontés */
+static long          lastScrollY = 0;      /* dernière position dessinée */
+static long          rubanH      = 0;      /* hauteur totale du ruban */
+static int           vWinX       = 0;      /* X gauche de la fenêtre  */
+
+
+
+
 
 /* =========================================================
    UTILITAIRES
@@ -279,168 +324,246 @@ static void blitVLine(int screenRow)
 }
 
 /* =========================================================
-   SCENE PRINCIPALE
+   BARRES HORIZONTALES de la partie A
    ========================================================= */
-void scene5(void)
+static void drawScrollBars(void)
 {
-    unsigned long now  = readTimer();
-    unsigned long steps;
-    int           i;
+    drawRectFill(0, textY - SCROLL_BAR_H - 1,
+                 SCREEN_WIDTH - 1, textY - 1,
+                 SCROLL_BAR_COLOR);
+    drawRectFill(0, textY + hFont.char_h,
+                 SCREEN_WIDTH - 1,
+                 textY + hFont.char_h + SCROLL_BAR_H,
+                 SCROLL_BAR_COLOR);
+}
 
-    /* -------------------------------------------------------
-       INITIALISATION GLOBALE (une seule fois)
-       ------------------------------------------------------- */
-    if (!initialized)
+
+
+
+
+/* =========================================================
+   INIT — appelée UNE fois au lancement de la scène
+   ========================================================= */
+static void scene5Init(void)
+{
+    int err;
+
+    partB       = 0;
+    lastScrollX = -1L;
+
+    err = loadPalette("font2\\16X16_F2.pal");
+    if (err != PAL_OK) { quitRequested = 1; return; }
+
+    /* Charger la police horizontale. */
+    if (!font2Load(&hFont)) { quitRequested = 1; return; }
+
+    /* FONT_W / FONT_H fixent la durée de la scène : s'ils ne
+       correspondent pas à la police, on arrête plutôt que de
+       jouer une scène trop courte ou trop longue. */
+    if ((unsigned long)hFont.char_w != FONT_W ||
+        (unsigned long)hFont.char_h != FONT_H)
     {
-        int err;
-
-        initialized = 1;
-        state       = 0;
-
-        err = loadPalette("font2\\16X16_F2.pal");
-        if (err != PAL_OK) { quitRequested = 1; return; }
-
-        /* Charger la police horizontale. */
-        if (!font2Load(&hFont)) { quitRequested = 1; return; }
-
-        hTextLen = f2len(HSCROLL_TEXT);
-        textY    = (SCREEN_HEIGHT - hFont.char_h) / 2;
-        rubanW   = (long)hTextLen * hFont.char_w;
-        scrollX  = 0;
-
-        clearScreen(SCROLL_BG_COLOR);
-        drawRectFill(0, textY - SCROLL_BAR_H - 1,
-                     SCREEN_WIDTH - 1, textY - 1,
-                     SCROLL_BAR_COLOR);
-        drawRectFill(0, textY + hFont.char_h,
-                     SCREEN_WIDTH - 1,
-                     textY + hFont.char_h + SCROLL_BAR_H,
-                     SCROLL_BAR_COLOR);
-        flip();
-        /* lastH en ticks (pas en ms) pour la logique tick-based. */
-        lastH = readTimer();
+        font2Free(&hFont);
+        quitRequested = 1;
         return;
     }
 
-    /* ======================================================= */
-    /* ETAT 0 — Scroll horizontal                              */
-    /* ======================================================= */
-    if (state == 0)
+    hTextLen = f2len(HSCROLL_TEXT);
+    textY    = (SCREEN_HEIGHT - hFont.char_h) / 2;
+    rubanW   = (long)hTextLen * hFont.char_w;
+    scrollX  = 0;
+
+    clearScreen(SCROLL_BG_COLOR);
+    drawScrollBars();
+    flip();
+}
+
+
+
+
+
+/* =========================================================
+   RENDER — appelée à chaque image (cadence FRAME_TICKS)
+   ---------------------------------------------------------
+   phase    : 0 = intro, 1 = corps, 2 = outro   (phases du gabarit)
+   progress : avancement DANS cette phase, de 0 à 1000
+   elapsed  : ticks écoulés depuis le début de la scène
+   ========================================================= */
+static void scene5Render(unsigned long elapsed, int phase, unsigned long progress)
+{
+    unsigned long fadeElapsed;
+    unsigned int  facteur;
+    long          pos;
+    int           i;
+
+    (void)phase; (void)progress;            /* parties A / B gérées ci-dessous */
+
+    /* =======================================================
+       PARTIE A — scroll horizontal
+       La position est une fonction du temps écoulé : 1 pixel
+       tous les HSCROLL_TICKS ticks, sans accumulation d'erreur
+       ni rattrapage plafonné.
+       ======================================================= */
+    if (elapsed < PART_A_TICKS)
     {
-        /* Avancement en ticks : 1 pixel tous les HSCROLL_TICKS ticks.
-           elapsedTime() retourne des ticks bruts (pas de ms),
-           pas de division entière qui tronque → débit constant. */
-        steps = elapsedTime(lastH, now) / HSCROLL_TICKS;
-        if (steps == 0) return;
-        if (steps > 8)  steps = 8;
+        pos = (long)(elapsed / HSCROLL_TICKS);
+        if (pos == lastScrollX) return;     /* rien de nouveau à dessiner */
+        lastScrollX = pos;
+        scrollX     = pos;
 
-        scrollX += (long)steps;
-
-        /* Fin du ruban → déclencher le fondu. */
-        if (scrollX >= rubanW)
-        {
-            state     = 1;
-            fadeStart = now;
-            return;
-        }
-
-        lastH += steps * HSCROLL_TICKS;
-
-        /* Rendu horizontal. */
         for (i = 0; i < SCREEN_WIDTH; i++)
             blitColumn(i);
 
-        drawRectFill(0, textY - SCROLL_BAR_H - 1,
-                     SCREEN_WIDTH - 1, textY - 1,
-                     SCROLL_BAR_COLOR);
-        drawRectFill(0, textY + hFont.char_h,
-                     SCREEN_WIDTH - 1,
-                     textY + hFont.char_h + SCROLL_BAR_H,
-                     SCROLL_BAR_COLOR);
+        drawScrollBars();
         flip();
         return;
     }
 
-    /* ======================================================= */
-    /* ETAT 1 — Fondu sortant A→B                              */
-    /* ======================================================= */
-    if (state == 1)
+    /* =======================================================
+       TRANSITION A -> B — fondu sortant (facteur 64 -> 0)
+       ======================================================= */
+    if (elapsed < PART_A_TICKS + TRANSITION_TICKS)
     {
-        unsigned long fadeElapsed = elapsedTimeMs(fadeStart, now);
-        unsigned int  facteur;
-
-        if (fadeElapsed >= FADE_MS)
-        {
-            /* Fondu terminé : initialiser la partie B. */
-            fadePaletteInt5(workingPalette, 0);
-
-            font2Free(&hFont);
-
-            /* La police verticale est la même feuille. */
-            vFont.sheet = 0;
-            if (!font2Load(&vFont)) { quitRequested = 1; return; }
-
-            rubanH  = (long)VLINES_COUNT * vFont.char_h;
-            /* scrollY démarre négatif : le texte entre par le bas.
-               scrollY = -(SCREEN_HEIGHT) place la première ligne
-               juste sous l'écran. */
-            scrollY = -(long)SCREEN_HEIGHT;
-            vWinX   = (SCREEN_WIDTH - VSCROLL_WIN_W) / 2;
-
-            /* Restaurer la palette à pleine luminosité. */
-            setPalette(workingPalette);
-
-            clearScreen(VSCROLL_BG_COLOR);
-            flip();
-
-            lastV = readTimer();
-            state = 2;
-            return;
-        }
-
-        /* Interpolation linéaire 64→0. */
-        facteur = (unsigned int)((FADE_MS - fadeElapsed) * 64UL / FADE_MS);
+        fadeElapsed = elapsed - PART_A_TICKS;
+        facteur = (unsigned int)((TRANSITION_TICKS - fadeElapsed) * 64UL
+                                 / TRANSITION_TICKS);
         fadePaletteInt5(workingPalette, facteur);
         return;
     }
 
-    /* ======================================================= */
-    /* ETAT 2 — Scroll vertical                                */
-    /* ======================================================= */
-    if (state == 2)
+    /* =======================================================
+       PARTIE B — scroll vertical
+       ======================================================= */
+    if (!partB)
     {
-        steps = elapsedTimeMs(lastV, now) / VSCROLL_SPEED_MS;
-        if (steps == 0) return;
-        if (steps > 6)  steps = 6;
+        /* Premier passage : fondu terminé, on initialise la partie B. */
+        fadePaletteInt5(workingPalette, 0);
 
-        scrollY += (long)steps;
-        lastV   += steps * (VSCROLL_SPEED_MS * TARGET_HZ) / 1000UL;
+        font2Free(&hFont);
 
-        /* Fin : la dernière ligne a quitté le haut de l'écran.
-           Condition : scrollY >= rubanH (tout le ruban est passé). */
-        if (scrollY >= rubanH)
-        {
-            font2Free(&vFont);
-            initialized = 0;
-            state       = 0;
-            sceneSignalEnd();
-            return;
-        }
+        /* La police verticale est la même feuille. */
+        vFont.sheet = 0;
+        if (!font2Load(&vFont)) { quitRequested = 1; return; }
 
-        /* Rendu : effacer les marges latérales, puis blit ligne par ligne. */
-        if (vWinX > 0)
-        {
-            drawRectFill(0, 0, vWinX - 1, SCREEN_HEIGHT - 1,
-                         VSCROLL_BG_COLOR);
-            drawRectFill(vWinX + VSCROLL_WIN_W, 0,
-                         SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1,
-                         VSCROLL_BG_COLOR);
-        }
+        rubanH  = (long)VLINES_COUNT * vFont.char_h;
+        /* scrollY démarre négatif : le texte entre par le bas.
+           scrollY = -(SCREEN_HEIGHT) place la première ligne
+           juste sous l'écran. */
+        scrollY     = -(long)SCREEN_HEIGHT;
+        lastScrollY = scrollY - 1L;         /* force le 1er dessin */
+        vWinX       = (SCREEN_WIDTH - VSCROLL_WIN_W) / 2;
 
-        for (i = 0; i < SCREEN_HEIGHT; i++)
-            blitVLine(i);
-
+        /* Écran noir d'abord, puis palette à pleine luminosité
+           (évite de rallumer l'ancienne image un instant). */
+        clearScreen(VSCROLL_BG_COLOR);
         flip();
-        return;
+        setPalette(workingPalette);
+
+        partB = 1;
     }
+
+    pos = -(long)SCREEN_HEIGHT
+          + (long)((elapsed - PART_A_TICKS - TRANSITION_TICKS) / VSCROLL_TICKS);
+    if (pos == lastScrollY) return;         /* rien de nouveau à dessiner */
+    lastScrollY = pos;
+    scrollY     = pos;
+
+    /* Rendu : effacer les marges latérales, puis blit ligne par ligne. */
+    if (vWinX > 0)
+    {
+        drawRectFill(0, 0, vWinX - 1, SCREEN_HEIGHT - 1,
+                     VSCROLL_BG_COLOR);
+        drawRectFill(vWinX + VSCROLL_WIN_W, 0,
+                     SCREEN_WIDTH - 1, SCREEN_HEIGHT - 1,
+                     VSCROLL_BG_COLOR);
+    }
+
+    for (i = 0; i < SCREEN_HEIGHT; i++)
+        blitVLine(i);
+
+    flip();
+}
+
+
+
+
+
+/* =========================================================
+   CLEANUP — appelée UNE fois à la fin de la scène
+   ========================================================= */
+static void scene5Cleanup(void)
+{
+    if (partB) font2Free(&vFont);
+    else       font2Free(&hFont);
+}
+
+
+
+
+
+/* =========================================================
+   POINT D'ENTRÉE — gestion du timer (NE PAS MODIFIER)
+   ========================================================= */
+void scene5(void)
+{
+    static int           initialized = 0;
+    static unsigned long lastFrame   = 0UL;
+
+    const unsigned long sceneTicks = MS_TO_TICKS(SCENE_MS);
+    const unsigned long inTicks    = MS_TO_TICKS(FADE_IN_MS);
+    const unsigned long outTicks   = MS_TO_TICKS(FADE_OUT_MS);
+
+    unsigned long now, elapsed, progress;
+    int phase;
+
+    now = readTimer();
+
+    /* 1. Initialisation : une seule fois par lancement */
+    if (!initialized)
+    {
+        initialized = 1;
+        sceneStart  = now;
+        lastFrame   = now;
+        scene5Init();
+        return;                     /* le 1er rendu se fera au tour suivant */
+    }
+
+    elapsed = elapsedTime(sceneStart, now);
+
+    /* 2. Fin de scène : test AVANT le rendu */
+    if (elapsed >= sceneTicks)
+    {
+        scene5Cleanup();
+        initialized = 0;            /* état remis à zéro d'abord... */
+        sceneSignalEnd();           /* ...puis on rend la main      */
+        return;                     /* et on ne touche plus à rien  */
+    }
+
+    /* 3. Limitation de cadence */
+    if (elapsedTime(lastFrame, now) < FRAME_TICKS)
+        return;
+
+    lastFrame += FRAME_TICKS;       /* pas fixe : pas de dérive */
+    if (elapsedTime(lastFrame, now) >= FRAME_TICKS)
+        lastFrame = now;            /* trop de retard : on abandonne le rattrapage */
+
+    /* 4. Phase courante et progression dans la phase (0..1000) */
+    if (inTicks > 0UL && elapsed < inTicks)
+    {
+        phase    = 0;
+        progress = elapsed * 1000UL / inTicks;
+    }
+    else if (outTicks > 0UL && elapsed >= sceneTicks - outTicks)
+    {
+        phase    = 2;
+        progress = (elapsed - (sceneTicks - outTicks)) * 1000UL / outTicks;
+    }
+    else
+    {
+        phase    = 1;
+        progress = (elapsed - inTicks) * 1000UL / (sceneTicks - inTicks - outTicks);
+    }
+
+    /* 5. Rendu */
+    scene5Render(elapsed, phase, progress);
 }

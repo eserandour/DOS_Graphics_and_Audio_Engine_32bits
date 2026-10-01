@@ -1,9 +1,14 @@
 /* =========================================================
    SCENE1.C — Scène : pixels aléatoires
    =========================================================
-   Durée totale : 5 secondes.
-   Fade in  non bloquant : 0 → fade_in_ms  (t : 0.0 → 1.0)
-   Fade out non bloquant : (scene_ms - fade_out_ms) → scene_ms (t : 1.0 → 0.0)
+   Basée sur scene_template.c (voir ce fichier pour les
+   règles de gestion du timer).
+
+   Durée totale : 6 secondes.
+   Fade in  non bloquant : 0 -> 1 s      (t : 0.0 -> 1.0)
+   Corps    pleine luminosité : 1 s -> 3 s
+   Fade out non bloquant : 3 s -> 6 s    (t : 1.0 -> 0.0)
+   Pixels aléatoires renouvelés toutes les 100 ms.
    Aucune gestion clavier (sauf Échap global via INT 09h).
    ========================================================= */
 
@@ -14,88 +19,208 @@
 #include "graphics.h"
 #include "scene.h"
 
-void scene1(void)
+
+
+
+
+/* ---------------------------------------------------------
+   Réglages de la scène
+   --------------------------------------------------------- */
+#define SCENE_MS     6000UL   /* durée totale                      */
+#define FADE_IN_MS   1000UL   /* phase intro                       */
+#define FADE_OUT_MS  3000UL   /* phase outro                       */
+
+/* Cadence de rendu : 1 tick (70 Hz), pour que le fondu de palette
+   soit aussi fluide que possible. Les pixels, eux, ne sont renouvelés
+   que toutes les PIXELS_TICKS (voir scene1Render). */
+#define FRAME_TICKS     1UL
+
+/* 100 ms = 7 ticks exactement (100 * 70 / 1000) */
+#define PIXELS_TICKS    7UL
+
+/* ms -> ticks, arrondi ; minimum 1 tick, sauf 0 ms qui reste 0 tick
+   (= phase supprimée, ex. FADE_IN_MS 0UL). Ne pas modifier. */
+#define MS_TO_TICKS(ms) \
+    ((ms) == 0UL ? 0UL : \
+     ((((ms) * TARGET_HZ + 500UL) / 1000UL) ? (((ms) * TARGET_HZ + 500UL) / 1000UL) : 1UL))
+
+
+
+
+
+/* ---------------------------------------------------------
+   Variables propres à la scène
+   --------------------------------------------------------- */
+static unsigned long lcg_state     = 0UL;   /* état du générateur LCG            */
+static unsigned long nextPixelsAt  = 0UL;   /* prochain renouvellement (ticks
+                                               depuis sceneStart)                 */
+
+
+
+
+
+/* =========================================================
+   INIT — appelée UNE fois au lancement de la scène
+   ========================================================= */
+static void scene1Init(void)
 {
-    static unsigned long lastRender    = 0;
-    static int           initialized   = 0;
-    static unsigned long lcg_state     = 0;
+    lcg_state    = (unsigned long)time(NULL);
+    nextPixelsAt = 0UL;                     /* 1er renouvellement immédiat */
 
-    const unsigned long render_interval_ms = 100UL;
-    const unsigned long scene_ms           = 6000UL;
-    const unsigned long fade_in_ms         = 1000UL;  /* durée du fondu entrant  */
-    const unsigned long fade_out_ms        = 3000UL;  /* durée du fondu sortant  */
+    copyPalette(workingPalette, defaultPalette);
+    fadePalette(workingPalette, 0.0f);      /* on part du noir (DAC seulement) */
 
-    unsigned long now     = readTimer();
-    unsigned long elapsed = elapsedTimeMs(sceneStart, now);
+    clearScreen(0);
+    flip();
+}
+
+
+
+
+
+/* =========================================================
+   RENDER — appelée à chaque image (cadence FRAME_TICKS)
+   ---------------------------------------------------------
+   phase    : 0 = intro, 1 = corps, 2 = outro
+   progress : avancement DANS la phase, de 0 à 1000
+   elapsed  : ticks écoulés depuis le début de la scène
+   ========================================================= */
+static void scene1Render(unsigned long elapsed, int phase, unsigned long progress)
+{
     unsigned long *dst;
     unsigned long i;
     float         t;
 
-    if (!initialized)
+    /* -------------------------------------------------------
+       Facteur de fondu courant (non bloquant)
+       ------------------------------------------------------- */
+    switch (phase)
     {
-        initialized = 1;
-        lastRender = now;
-        lcg_state  = (unsigned long)time(NULL);
-        copyPalette(workingPalette, defaultPalette);
-        setPalette(workingPalette);
-        clearScreen(0);   
+    case 0: /* ---- INTRO : 0 -> 1 ---- */
+        t = (float)progress / 1000.0f;
+        break;
+
+    case 1: /* ---- CORPS : pleine luminosité ---- */
+        t = 1.0f;
+        break;
+
+    default: /* ---- OUTRO : 1 -> 0 ---- */
+        t = 1.0f - (float)progress / 1000.0f;
+        break;
     }
 
     /* -------------------------------------------------------
-       Rendu des pixels aléatoires
-       ---------------------------------------------------------
-       On écrit explicitement des blocs de 4 octets (unsigned
-       long, garanti 32 bits) plutôt que de dépendre de la taille
-       de "unsigned int", qui n'est pas garantie par le standard C.
-       Cela fixe une bonne fois pour toutes le nombre d'itérations
-       (BACKBUFFER_SIZE / 4) et garantit que le générateur LCG
-       fournit bien 32 bits d'entropie à chaque écriture, sans
-       motif en bandes dû à des bits hauts toujours nuls. */
-    while (elapsedTimeMs(lastRender, now) >= render_interval_ms)
+       Renouvellement des pixels toutes les PIXELS_TICKS.
+       On écrit des blocs de 4 octets (unsigned long, 32 bits)
+       plutôt que de dépendre de la taille de "unsigned int" :
+       nombre d'itérations fixe (BACKBUFFER_SIZE / 4) et 32 bits
+       d'entropie du LCG à chaque écriture.
+       flip() n'est appelé que lorsque le backbuffer a changé.
+       ------------------------------------------------------- */
+    if (elapsed >= nextPixelsAt)
     {
         dst = (unsigned long *)backbuffer;
 
         for (i = 0; i < BACKBUFFER_SIZE / 4UL; i++)
         {
             lcg_state = lcg_state * 1664525UL + 1013904223UL;
-            dst[i]    = lcg_state;   /* 4 pixels/octets d'entropie complète */
+            dst[i]    = lcg_state;
         }
 
         flip();
 
-        lastRender += (render_interval_ms * TARGET_HZ) / 1000UL;
+        nextPixelsAt += PIXELS_TICKS;               /* pas fixe : pas de dérive */
+        if (nextPixelsAt <= elapsed)
+            nextPixelsAt = elapsed + PIXELS_TICKS;  /* trop de retard : on abandonne le rattrapage */
     }
 
     /* -------------------------------------------------------
-       Calcul du facteur de fondu courant (non bloquant)
+       Application du fondu sur la palette.
+       fadePalette() applique t à workingPalette et envoie
+       directement au DAC, sans modifier workingPalette en RAM.
        ------------------------------------------------------- */
-    if (elapsed < fade_in_ms)
+    fadePalette(workingPalette, t);
+}
+
+
+
+
+
+/* =========================================================
+   CLEANUP — appelée UNE fois à la fin de la scène
+   ========================================================= */
+static void scene1Cleanup(void)
+{
+    /* Rien à libérer. */
+}
+
+
+
+
+
+/* =========================================================
+   POINT D'ENTRÉE — gestion du timer (NE PAS MODIFIER)
+   ========================================================= */
+void scene1(void)
+{
+    static int           initialized = 0;
+    static unsigned long lastFrame   = 0UL;
+
+    const unsigned long sceneTicks = MS_TO_TICKS(SCENE_MS);
+    const unsigned long inTicks    = MS_TO_TICKS(FADE_IN_MS);
+    const unsigned long outTicks   = MS_TO_TICKS(FADE_OUT_MS);
+
+    unsigned long now, elapsed, progress;
+    int phase;
+
+    now = readTimer();
+
+    /* 1. Initialisation : une seule fois par lancement */
+    if (!initialized)
     {
-        /* Fade in : 0 → fade_in_ms */
-        t = (float)elapsed / (float)fade_in_ms;
+        initialized = 1;
+        sceneStart  = now;
+        lastFrame   = now;
+        scene1Init();
+        return;                     /* le 1er rendu se fera au tour suivant */
     }
-    else if (elapsed >= scene_ms - fade_out_ms)
+
+    elapsed = elapsedTime(sceneStart, now);
+
+    /* 2. Fin de scène : test AVANT le rendu */
+    if (elapsed >= sceneTicks)
     {
-        /* Fade out : (scene_ms - fade_out_ms) → scene_ms */
-        t = (float)(scene_ms - elapsed) / (float)fade_out_ms;
-        if (t < 0.0f) t = 0.0f;
+        scene1Cleanup();
+        initialized = 0;            /* état remis à zéro d'abord... */
+        sceneSignalEnd();           /* ...puis on rend la main      */
+        return;                     /* et on ne touche plus à rien  */
+    }
+
+    /* 3. Limitation de cadence */
+    if (elapsedTime(lastFrame, now) < FRAME_TICKS)
+        return;
+
+    lastFrame += FRAME_TICKS;       /* pas fixe : pas de dérive */
+    if (elapsedTime(lastFrame, now) >= FRAME_TICKS)
+        lastFrame = now;            /* trop de retard : on abandonne le rattrapage */
+
+    /* 4. Phase courante et progression dans la phase (0..1000) */
+    if (inTicks > 0UL && elapsed < inTicks)
+    {
+        phase    = 0;
+        progress = elapsed * 1000UL / inTicks;
+    }
+    else if (outTicks > 0UL && elapsed >= sceneTicks - outTicks)
+    {
+        phase    = 2;
+        progress = (elapsed - (sceneTicks - outTicks)) * 1000UL / outTicks;
     }
     else
     {
-        /* Pleine luminosité */
-        t = 1.0f;
+        phase    = 1;
+        progress = (elapsed - inTicks) * 1000UL / (sceneTicks - inTicks - outTicks);
     }
 
-    /* -------------------------------------------------------
-       Application du fondu sur la palette (non bloquant)
-       fadePalette() applique t à workingPalette et envoie
-       directement au DAC sans modifier workingPalette en RAM.
-       ------------------------------------------------------- */
-    fadePalette(workingPalette, t);
-
-    if (elapsedTimeMs(sceneStart, now) > scene_ms)
-    {
-        initialized = 0;
-        sceneSignalEnd();
-    }
+    /* 5. Rendu */
+    scene1Render(elapsed, phase, progress);
 }

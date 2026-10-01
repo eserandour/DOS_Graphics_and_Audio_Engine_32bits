@@ -19,7 +19,16 @@
    Fade in 1 s / fade out 1 s sur la durée totale.
    Aucune gestion clavier (sauf Échap global via INT 09h).
    Cible : Open Watcom 1.9, DOS, mode 13h (320x200).
+
+   TIMER — scène basée sur scene_template.c (voir ce fichier pour
+   les règles) : tout le minutage est en ticks (70 Hz).
+   6 sous-scènes de PHASE_TICKS ; elapsed donne la sous-scène et le
+   temps dedans. Fondus entrant/sortant = intro/outro du gabarit.
    ========================================================= */
+
+
+
+
 
 #include <math.h>       /* sin, cos, fabs, sqrt            */
 #include <stdlib.h>     /* abs                             */
@@ -29,20 +38,51 @@
 #include "graphics.h"
 #include "scene.h"
 
-/* =========================================================
-   CONSTANTES
-   ========================================================= */
 
+
+
+
+/* ---------------------------------------------------------
+   Réglages de la scène
+   --------------------------------------------------------- */
+#define PHASE_MS    3000UL      /* durée d'une phase (ms)   */
+#define NB_PHASES   6
+
+#define SCENE_MS     (NB_PHASES * PHASE_MS)   /* 18 s */
+#define FADE_IN_MS   1000UL     /* fondu entrant  */
+#define FADE_OUT_MS  1000UL     /* fondu sortant  */
+
+/* Cadence : 2 ticks = 35 Hz (l'original visait 33 ms, soit ~30 fps).
+   Si une image coûte plus cher, le gabarit abandonne le retard. */
+#define FRAME_TICKS     2UL
+
+/* ms -> ticks, arrondi ; minimum 1 tick, sauf 0 ms qui reste 0 tick
+   (= phase supprimée, ex. FADE_IN_MS 0UL). Ne pas modifier. */
+#define MS_TO_TICKS(ms) \
+    ((ms) == 0UL ? 0UL : \
+     ((((ms) * TARGET_HZ + 500UL) / 1000UL) ? (((ms) * TARGET_HZ + 500UL) / 1000UL) : 1UL))
+
+#define PHASE_TICKS  MS_TO_TICKS(PHASE_MS)
+
+/* Constantes graphiques */
 #define PI          3.14159265f
 #define TWO_PI      6.28318530f
 
-#define PHASE_MS    3000UL      /* durée d'une phase (ms)   */
-#define NB_PHASES   6
-#define SCENE_MS    (NB_PHASES * PHASE_MS)  /* 18 s          */
-#define FADE_MS     1000UL      /* fade in / fade out        */
-
 #define CX          160         /* centre écran X            */
 #define CY          100         /* centre écran Y            */
+
+
+
+
+
+/* ---------------------------------------------------------
+   Variables propres à la scène
+   --------------------------------------------------------- */
+static int lastPhase = -1;   /* dernière phase (sous-scène) dessinée */
+
+
+
+
 
 /* =========================================================
    UTILITAIRES
@@ -76,9 +116,9 @@ static void regularPolygon(int cx, int cy, int r, float angle,
    Des cercles de contour intercalés renforcent la profondeur.
    Deux centres secondaires hors-écran valident le clipping. */
 
-static void phase1(unsigned long t_ms)
+static void phase1(unsigned long t_ticks)
 {
-    float progress = (float)t_ms / (float)PHASE_MS;
+    float progress = (float)t_ticks / (float)PHASE_TICKS;
     float offset   = progress * 30.0f;   /* défilement du tunnel */
     int   i, r;
     int   nRings  = 14;
@@ -125,9 +165,9 @@ static void phase1(unsigned long t_ms)
    Une seconde spirale en sens inverse crée un entrelacement.
    Le clipping de drawLine gère les extrémités hors-écran. */
 
-static void phase2(unsigned long t_ms)
+static void phase2(unsigned long t_ticks)
 {
-    float progress  = (float)t_ms / (float)PHASE_MS;
+    float progress  = (float)t_ticks / (float)PHASE_TICKS;
     float baseAngle = progress * TWO_PI * 2.0f;
     int   i, x2, y2;
     int   nSpokes   = 48;
@@ -172,9 +212,9 @@ static void phase2(unsigned long t_ms)
    La taille des cellules pulse légèrement.
    Quelques contours drawRect animent la surface. */
 
-static void phase3(unsigned long t_ms)
+static void phase3(unsigned long t_ticks)
 {
-    float progress = (float)t_ms / (float)PHASE_MS;
+    float progress = (float)t_ticks / (float)PHASE_TICKS;
     float t        = progress * TWO_PI;
     int   i, j;
     int   cols = 16, rows = 10;
@@ -230,9 +270,9 @@ static void phase3(unsigned long t_ms)
    cœur. getPixel est utilisé pour éviter d'écraser les
    contours déjà tracés (dessin sélectif). */
 
-static void phase4(unsigned long t_ms)
+static void phase4(unsigned long t_ticks)
 {
-    float progress = (float)t_ms / (float)PHASE_MS;
+    float progress = (float)t_ticks / (float)PHASE_TICKS;
     float angle    = progress * TWO_PI;
     int   i, n;
     int   pts[16]; /* max 8 sommets × 2 coords */
@@ -292,9 +332,9 @@ static void phase4(unsigned long t_ms)
    getPixel + putPixel : chaque pixel des contours est relu
    et sa couleur complémentée (effet de traînée lumineuse). */
 
-static void phase5(unsigned long t_ms)
+static void phase5(unsigned long t_ticks)
 {
-    float progress = (float)t_ms / (float)PHASE_MS;
+    float progress = (float)t_ticks / (float)PHASE_TICKS;
     float t        = progress * TWO_PI;
     int   i, pts[10];
     unsigned char col, existing;
@@ -356,9 +396,9 @@ static void phase5(unsigned long t_ms)
    - Ornements putPixel sur une ellipse
    ========================================================= */
 
-static void phase6(unsigned long t_ms)
+static void phase6(unsigned long t_ticks)
 {
-    float progress = (float)t_ms / (float)PHASE_MS;
+    float progress = (float)t_ticks / (float)PHASE_TICKS;
     float angle    = progress * TWO_PI;
     int   i, x2, y2, r, pts[12];
     float a;
@@ -421,90 +461,169 @@ static void phase6(unsigned long t_ms)
     }
 }
 
+
+
+
+
 /* =========================================================
-   SCÈNE PRINCIPALE
+   INIT — appelée UNE fois au lancement de la scène
    ========================================================= */
-
-void scene7(void)
+static void scene7Init(void)
 {
-    static int           initialized = 0;
-    static unsigned long lastRender  = 0UL;
-    static int           lastPhase   = -1;
+    lastPhase = -1;
 
-    const unsigned long render_ms = 33UL;   /* ~30 fps */
+    buildRainbowPalette(rainbowPalette);
+    copyPalette(workingPalette, rainbowPalette);
+    fadePalette(workingPalette, 0.0f);      /* on part du noir (DAC seulement) */
 
-    unsigned long now     = readTimer();
-    unsigned long elapsed = elapsedTimeMs(sceneStart, now);
-    int           phase;
-    unsigned long phase_t;
-    float         fade_t;
+    clearScreen(0);
+    flip();
+}
 
-    if (!initialized)
-    {
-        initialized = 1;
-        lastRender  = now;
-        lastPhase   = -1;
 
-        buildRainbowPalette(rainbowPalette);
-        copyPalette(workingPalette, rainbowPalette);
-        setPalette(workingPalette);
-        clearScreen(0);
-        flip();
-    }
 
-    /* -------------------------------------------------------
-       Calcul de la phase courante et du temps dans la phase
-       ------------------------------------------------------- */
-    if (elapsed >= SCENE_MS)
-    {
-        initialized = 0;
-        sceneSignalEnd();
-        return;
-    }
 
-    phase   = (int)(elapsed / PHASE_MS);
-    if (phase >= NB_PHASES) phase = NB_PHASES - 1;
-    phase_t = elapsed - (unsigned long)phase * PHASE_MS;
+
+/* =========================================================
+   RENDER — appelée à chaque image (cadence FRAME_TICKS)
+   ---------------------------------------------------------
+   phase    : 0 = intro, 1 = corps, 2 = outro   (phases du gabarit)
+   progress : avancement DANS cette phase, de 0 à 1000
+   elapsed  : ticks écoulés depuis le début de la scène
+   ========================================================= */
+static void scene7Render(unsigned long elapsed, int phase, unsigned long progress)
+{
+    int           sub;
+    unsigned long sub_t;
+    float         t;
 
     /* -------------------------------------------------------
-       Rendu (interval-based, ~30 fps)
+       Sous-scène courante (1 à 6) et temps dans cette sous-scène,
+       en ticks. Ne pas confondre avec 'phase' (intro/corps/outro
+       du gabarit) qui ne sert ici qu'au fondu global.
        ------------------------------------------------------- */
-    if (elapsedTimeMs(lastRender, now) < render_ms)
-        goto do_fade;   /* pas encore l'heure de redessiner */
+    sub = (int)(elapsed / PHASE_TICKS);
+    if (sub >= NB_PHASES) sub = NB_PHASES - 1;
+    sub_t = elapsed - (unsigned long)sub * PHASE_TICKS;
 
-    lastRender = now;
-
-    if (phase != lastPhase)
+    if (sub != lastPhase)
     {
         clearScreen(0);
-        lastPhase = phase;
+        lastPhase = sub;
     }
 
-    switch (phase)
+    switch (sub)
     {
-        case 0: phase1(phase_t); break;
-        case 1: phase2(phase_t); break;
-        case 2: phase3(phase_t); break;
-        case 3: phase4(phase_t); break;
-        case 4: phase5(phase_t); break;
-        case 5: phase6(phase_t); break;
+        case 0: phase1(sub_t); break;
+        case 1: phase2(sub_t); break;
+        case 2: phase3(sub_t); break;
+        case 3: phase4(sub_t); break;
+        case 4: phase5(sub_t); break;
+        case 5: phase6(sub_t); break;
     }
 
     flip();
 
-do_fade:
     /* -------------------------------------------------------
-       Calcul du facteur de fondu global
+       Fondu global (intro / outro du gabarit)
        ------------------------------------------------------- */
-    if (elapsed < FADE_MS)
-        fade_t = (float)elapsed / (float)FADE_MS;
-    else if (elapsed >= SCENE_MS - FADE_MS)
+    switch (phase)
     {
-        fade_t = (float)(SCENE_MS - elapsed) / (float)FADE_MS;
-        if (fade_t < 0.0f) fade_t = 0.0f;
+    case 0: /* ---- INTRO : 0 -> 1 ---- */
+        t = (float)progress / 1000.0f;
+        break;
+
+    case 1: /* ---- CORPS : pleine luminosité ---- */
+        t = 1.0f;
+        break;
+
+    default: /* ---- OUTRO : 1 -> 0 ---- */
+        t = 1.0f - (float)progress / 1000.0f;
+        break;
+    }
+
+    fadePalette(workingPalette, t);
+}
+
+
+
+
+
+/* =========================================================
+   CLEANUP — appelée UNE fois à la fin de la scène
+   ========================================================= */
+static void scene7Cleanup(void)
+{
+    /* Rien à libérer. */
+}
+
+
+
+
+
+/* =========================================================
+   POINT D'ENTRÉE — gestion du timer (NE PAS MODIFIER)
+   ========================================================= */
+void scene7(void)
+{
+    static int           initialized = 0;
+    static unsigned long lastFrame   = 0UL;
+
+    const unsigned long sceneTicks = MS_TO_TICKS(SCENE_MS);
+    const unsigned long inTicks    = MS_TO_TICKS(FADE_IN_MS);
+    const unsigned long outTicks   = MS_TO_TICKS(FADE_OUT_MS);
+
+    unsigned long now, elapsed, progress;
+    int phase;
+
+    now = readTimer();
+
+    /* 1. Initialisation : une seule fois par lancement */
+    if (!initialized)
+    {
+        initialized = 1;
+        sceneStart  = now;
+        lastFrame   = now;
+        scene7Init();
+        return;                     /* le 1er rendu se fera au tour suivant */
+    }
+
+    elapsed = elapsedTime(sceneStart, now);
+
+    /* 2. Fin de scène : test AVANT le rendu */
+    if (elapsed >= sceneTicks)
+    {
+        scene7Cleanup();
+        initialized = 0;            /* état remis à zéro d'abord... */
+        sceneSignalEnd();           /* ...puis on rend la main      */
+        return;                     /* et on ne touche plus à rien  */
+    }
+
+    /* 3. Limitation de cadence */
+    if (elapsedTime(lastFrame, now) < FRAME_TICKS)
+        return;
+
+    lastFrame += FRAME_TICKS;       /* pas fixe : pas de dérive */
+    if (elapsedTime(lastFrame, now) >= FRAME_TICKS)
+        lastFrame = now;            /* trop de retard : on abandonne le rattrapage */
+
+    /* 4. Phase courante et progression dans la phase (0..1000) */
+    if (inTicks > 0UL && elapsed < inTicks)
+    {
+        phase    = 0;
+        progress = elapsed * 1000UL / inTicks;
+    }
+    else if (outTicks > 0UL && elapsed >= sceneTicks - outTicks)
+    {
+        phase    = 2;
+        progress = (elapsed - (sceneTicks - outTicks)) * 1000UL / outTicks;
     }
     else
-        fade_t = 1.0f;
+    {
+        phase    = 1;
+        progress = (elapsed - inTicks) * 1000UL / (sceneTicks - inTicks - outTicks);
+    }
 
-    fadePalette(workingPalette, fade_t);
+    /* 5. Rendu */
+    scene7Render(elapsed, phase, progress);
 }
