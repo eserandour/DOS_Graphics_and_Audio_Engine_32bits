@@ -1,6 +1,6 @@
 # DOS Graphics & Audio Engine (32 bits)
 
-*Dernière version : 01/10/2026*
+*Dernière version : 02/10/2026*
 
 Moteur graphique et audio pour **DOS**, écrit en C ANSI avec **Open Watcom 1.9**, mode VGA **13h** (320×200, 256 couleurs) et carte **Sound Blaster** (ou compatible), en modèle mémoire **flat 32 bits** (DOS/32A).
 
