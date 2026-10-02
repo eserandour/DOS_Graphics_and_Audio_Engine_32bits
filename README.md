@@ -189,7 +189,7 @@ int main(void)
 
 | # | Scène | Contenu |
 |---|---|---|
-| 0 | `scene0.c` | Écran noir (1 s, calage des captures vidéo) |
+| 0 | `scene0.c` | Écran noir (3 s, calage des captures vidéo) |
 | 1 | `scene1.c` | Pixels aléatoires (LCG) avec fondu d'entrée/sortie |
 | 2 | `scene2.c` | Palette VGA : cycle de couleurs, interpolation (lerp) |
 | 3 | `scene3.c` | Polices `font1` : BIOS et personnelles, 8×8/8×16/16×16 |
