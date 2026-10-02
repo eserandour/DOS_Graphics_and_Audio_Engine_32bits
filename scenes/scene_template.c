@@ -30,28 +30,16 @@
       début et fin de playlist) ; elle doit repartir propre.
    ========================================================= */
 
-
-
-
-
 #include "timer.h"
 #include "video.h"
 #include "palette.h"
 #include "graphics.h"
 #include "scene.h"
 
-
-
-
-
 /* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
    >>>  VOTRE CODE ICI : #include supplémentaires       <<<
    >>>  (font1.h, font2.h, image.h, audio.h, app.h...)  <<<
    >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
-
-
-
-
 
 /* ---------------------------------------------------------
    Réglages de la scène
@@ -63,14 +51,11 @@
 /* >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
    >>>  VOTRE CODE ICI : durées et cadence de la scène  <<<
    >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> */
+
 #define SCENE_MS     5000UL   /* durée totale                 */
 #define FADE_IN_MS    500UL   /* phase intro (0UL = pas d'intro)  */
 #define FADE_OUT_MS   500UL   /* phase outro (0UL = pas d'outro)  */
 #define FRAME_TICKS     2UL   /* ticks entre 2 rendus : 1=70 Hz, 2=35 Hz, 3=23,3 Hz, 4=17,5 Hz */
-
-
-
-
 
 /* ms -> ticks, arrondi ; minimum 1 tick, sauf 0 ms qui reste 0 tick
    (= phase supprimée, ex. FADE_IN_MS 0UL). Ne pas modifier. */
