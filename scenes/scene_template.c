@@ -1,7 +1,7 @@
 /* =========================================================
    SCENE_TEMPLATE.C — Structure minimale d'une scène
    =========================================================
-   Les zones où TU ajoutes ton code sont encadrées ainsi :
+   Les zones où ajouter son code sont encadrées ainsi :
 
    >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
    >>>  VOTRE CODE ICI : ...                            <<<
