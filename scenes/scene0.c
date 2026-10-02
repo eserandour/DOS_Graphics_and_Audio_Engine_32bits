@@ -15,7 +15,7 @@
 /* ---------------------------------------------------------
    Réglages de la scène
    --------------------------------------------------------- */
-#define SCENE_MS     3000UL   /* durée totale          */
+#define SCENE_MS    3000UL  /* durée totale */
 
 
 
@@ -26,7 +26,7 @@
    ========================================================= */
 static void scene0Init(void)
 {
-    clearScreen(0);   /* écran noir */
+    clearScreen(0);  /* écran noir */
     flip();
 }
 
@@ -55,7 +55,7 @@ void scene0(void)
     /* 2. Fin de scène */
     if (elapsedTimeMs(sceneStart, now) >= SCENE_MS)
     {
-        initialized = 0;            /* état remis à zéro d'abord... */
-        sceneSignalEnd();           /* ...puis on rend la main      */
+        initialized = 0;   /* état remis à zéro d'abord... */
+        sceneSignalEnd();  /* ...puis on rend la main      */
     }
 }
