@@ -87,7 +87,6 @@ DOS_Graphics_and_Audio_Engine_32bits/
 └── LICENSE               GNU GPL v3
 
 Fichiers générés par BUILD.BAT (ne pas modifier à la main) :
-
 ├── LINK.RSP              Script d'édition de liens (DOS/32A)
 ├── SCENEDCL.H            Prototypes des scènes présentes (inclus par scene.c)
 └── SCENETAB.H            Entrées du tableau des scènes (inclus par scene.c)
