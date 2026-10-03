@@ -1,6 +1,6 @@
 # DOS Graphics & Audio Engine (32 bits)
 
-*Dernière version : 03/10/2026 à 23h23*
+*Dernière version : 03/10/2026 à 23h35*
 
 Moteur graphique et audio pour **DOS**, écrit en C ANSI avec **Open Watcom 1.9**, mode VGA **13h** (320×200, 256 couleurs) et carte **Sound Blaster** (ou compatible), en modèle mémoire **flat 32 bits** (DOS/32A).
 
@@ -133,7 +133,7 @@ Compile chaque module avec `wcc386 -3s -mf -os -I.` (instructions 386, modèle f
 
 ```
 CLEAN.BAT       REM supprime .obj / .out / .err
-CLEANALL.BAT    REM idem + supprime aussi demo.exe (DOS32A.EXE / STUB32A.EXE sont conservés)
+CLEANALL.BAT    REM idem + supprime aussi .exe (DOS32A.EXE / STUB32A.EXE sont conservés)
 ```
 
 > `LINK.RSP` explicite les directives DOS/32A (format `OS2 LE`, stub `stub32a.exe`). Si votre installation Watcom reconnaît déjà le système `STUB32A`, `LINK.RSP` peut être réduit à la ligne `SYSTEM STUB32A`.
