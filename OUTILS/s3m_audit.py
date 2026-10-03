@@ -26,6 +26,10 @@ if not os.path.isfile(SRC) or not os.path.isfile(os.path.join(os.path.dirname(SR
 INC = os.path.dirname(SRC)
 TMP = tempfile.mkdtemp(prefix='s3m_audit_')
 RATE = 11025
+
+# Les résultats « DIFF CONNUE » dépendent de la version de libopenmpt utilisée par
+# ffmpeg : certaines versions acceptent des valeurs que la spécification ST3 ignore
+# (tempo < 33, vitesse initiale 255). s3m.c suit la spécification ST3.
 TOL_CENTS, TOL_VOL, MAX_BAD = 20.0, 0.20, 3
 
 DUMP_C = r'''
@@ -197,8 +201,10 @@ test('A00 (ignoré)', R(cell(C4, 1, 40), cell(E4, 1, 40, cmd='A', info=0x00), ce
 test('T33', R(cell(C4, 1, 40), cell(E4, 1, 40, cmd='T', info=0x21), cell(G4, 1, 40)), 60)
 test('T32 (la spec ST3 l\'ignore : T < 33)', R(cell(C4, 1, 40), cell(E4, 1, 40, cmd='T', info=0x20), cell(G4, 1, 40)), 30,
      known='libopenmpt accepte 32, la spécification ST3 l\'ignore (s3m.c suit la spécification)')
-test('en-tête : vitesse initiale 255 (ignorée)', R(cell(C4, 1, 40), cell(E4, 1, 40)), 18, speed=255)
-test('en-tête : tempo initial 32 (ignoré)', R(cell(C4, 1, 40), cell(E4, 1, 40)), 18, tempo=32)
+test('en-tête : vitesse initiale 255 (ignorée)', R(cell(C4, 1, 40), cell(E4, 1, 40)), 18, speed=255,
+     known='selon sa version, libopenmpt applique la vitesse 255 ; s3m.c l\'ignore (6) comme ST3')
+test('en-tête : tempo initial 32 (ignoré)', R(cell(C4, 1, 40), cell(E4, 1, 40)), 18, tempo=32,
+     known='selon sa version, libopenmpt accepte le tempo 32 ; s3m.c l\'ignore (125) comme ST3')
 
 nb = len(RESULTS)
 print('\n%d OK, %d différence(s) connue(s), %d écart(s) sur %d tests.' % (RESULTS.count('OK'), RESULTS.count('DIFF CONNUE'), RESULTS.count('ÉCART'), nb))
