@@ -6,9 +6,14 @@ Moteur graphique et audio pour **DOS**, écrit en C ANSI avec **Open Watcom 1.9*
 
 Accès direct au matériel PC (VRAM, PIT, clavier, DMA/DSP), sans dépendance à une bibliothèque graphique ou audio tierce. Une playlist de 9 scènes de démonstration (`scenes/`) illustre l'ensemble des modules : palette, polices bitmap, primitives 2D, rotozoom, musique tracker S3M... Un gabarit (`scenes/scene_template.c`) donne la structure à suivre pour écrire ses propres scènes en gérant correctement le timer.
 
-[![Police bitmap 16x16](CAPTURES/demo_009.png)](CAPTURES/demo_009.png) [![Écran d'intro](CAPTURES/demo_007.png)](CAPTURES/demo_007.png)
-
-[![Tunnel de cercles concentriques](CAPTURES/demo_012.png)](CAPTURES/demo_012.png) [![Polygones remplis en rebond](CAPTURES/demo_015.png)](CAPTURES/demo_015.png)
+<p align="center">
+  <img src="CAPTURES/demo_009.png" width="45%" alt="Police bitmap 16x16">
+  <img src="CAPTURES/demo_007.png" width="45%" alt="Écran d'intro">
+</p>
+<p align="center">
+  <img src="CAPTURES/demo_012.png" width="45%" alt="Tunnel de cercles concentriques">
+  <img src="CAPTURES/demo_015.png" width="45%" alt="Polygones remplis en rebond">
+</p>
 
 ---
 
@@ -76,12 +81,17 @@ DOS_Graphics_and_Audio_Engine_32bits/
 ├── CAPTURES/             Captures d'écran de la démo
 │
 ├── OUTILS/               Scripts Python de conversion et d'extraction d'assets
-│   └── s3m_extract.py    Extraction des samples d'un .s3m en .wav
 │
-├── BUILD.BAT             Compilation (wcc386 + wlink)
+├── BUILD.BAT             Compilation (wcc386 + wlink), génère les 3 fichiers ci-dessous
 ├── CLEAN.BAT / CLEANALL.BAT  Nettoyage des fichiers générés
-├── LINK.RSP              Script d'édition de liens (DOS/32A)
 └── LICENSE               GNU GPL v3
+
+Fichiers générés par BUILD.BAT (ne pas modifier à la main) :
+
+├── LINK.RSP              Script d'édition de liens (DOS/32A)
+├── SCENEDCL.H            Prototypes des scènes présentes (inclus par scene.c)
+└── SCENETAB.H            Entrées du tableau des scènes (inclus par scene.c)
+
 ```
 
 ## Modules
