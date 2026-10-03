@@ -1,27 +1,39 @@
 /* =========================================================
    SCENE8.C — Scène de test : cycle de vie complet du moteur
               audio S3M (playMusic / fadeMusicIn / fadeMusicOut
-              / stopMusic)
+              / stopMusic), avec musique.s3m jouée DEUX FOIS
    =========================================================
-   Enchaîne les quatre phases du cycle de vie audio sur
-   musique.s3m ("Starshine - PM", Gv=48 Mv=48 — un morceau qui
-   n'est PAS censé sortir à 100 % du numérique, bon test pour
-   vérifier que Gv/Mv sont bien respectés, voir la section
-   VOLUME de audio.h) :
+   Enchaîne les phases du cycle de vie audio sur musique.s3m
+   (Gv=64, Mv=48 : un morceau qui n'est PAS censé sortir à 100 %
+   du numérique, bon test pour vérifier que Gv/Mv sont bien
+   respectés, voir la section VOLUME de audio.h) :
 
-     0.0s -  6.0s : FADE IN   — fadeMusicIn(6000)
-     6.0s - 22.0s : LECTURE   — plein volume "normal" du morceau
-    22.0s - 28.0s : FADE OUT  — fadeMusicOut(6000)
-    28.0s - 32.0s : ARRET     — stopMusic(), mémoire libérée      
+     0 .. 6 s          : FADE IN   — fadeMusicIn(6000)
+     6 s .. fin-6 s    : LECTURE   — plein volume "normal" du
+                                     morceau, pendant MUSIC_PASSES
+                                     lectures COMPLÈTES (2)
+     dernières 6 s     : FADE OUT  — fadeMusicOut(6000), calé pour
+                                     se terminer avec la dernière
+                                     lecture
+     puis 4 s          : ARRET     — stopMusic(), mémoire libérée
 
-   L'écran affiche en direct la phase courante, le statut
-   isMusicPlaying(), et le nombre de bouclages détectés via
-   hasMusicLooped() (compteur cumulé — voir audio.h : le drapeau
-   est consommé à chaque appel, donc on l'accumule nous-mêmes).
-   Ce morceau dure plusieurs minutes (40 ordres/motifs à
-   speed=6/tempo=125) : ne pas s'étonner que ce compteur reste à
-   0 sur les 32 secondes de la scène, c'est attendu — le
-   mécanisme est démontré, pas un bouclage complet.
+   DURÉE : elle dépend du morceau, elle n'est donc PAS une constante.
+   Le moteur signale chaque bouclage (hasMusicLooped) : le premier
+   bouclage donne la durée d'UNE lecture (mesurée en ticks depuis le
+   démarrage), d'où l'on déduit l'instant où lancer le fondu de
+   sortie pour qu'il s'achève à la fin de la dernière lecture. Pour
+   ce morceau (~2 min 49 s par lecture), la scène dure donc environ
+   5 min 40 s. SCENE_MS n'est qu'une borne de sécurité.
+
+   L'écran affiche en direct la phase courante, le numéro de la
+   lecture en cours, le statut isMusicPlaying() et le nombre de
+   bouclages détectés (compteur cumulé : le drapeau de
+   hasMusicLooped() est consommé à chaque appel, voir audio.h).
+
+   Si le chargement échoue (fichier absent, pas de carte son...) ou
+   si la musique ne joue pas, la scène saute directement à la phase
+   ARRET et se termine après 4 s au lieu d'attendre des bouclages
+   qui ne viendront pas.
 
    AFFICHAGE — police FONT1_BIOS (8x8), écran 320 px : toutes
    les chaînes affichées sont volontairement tenues sous ~36
@@ -32,8 +44,10 @@
    Toutes les déclarations en tête de bloc.
 
    TIMER — scène basée sur scene_template.c (voir ce fichier pour
-   les règles) : tout le minutage est en ticks (70 Hz).
-   Durée : 32 s (6 s fade in, 16 s lecture, 6 s fade out, 4 s arrêt).
+   les règles) : tout le minutage est en ticks (70 Hz). Écart au
+   gabarit : la fin de scène est aussi déclenchée par scene8Over
+   (une seule ligne ajoutée dans le point d'entrée), car la durée
+   dépend de la musique.
    ========================================================= */
 
 
@@ -56,17 +70,15 @@
 /* ---------------------------------------------------------
    Réglages de la scène
    --------------------------------------------------------- */
-#define MUSIC_FADE_MS   6000UL    /* durée de chaque fondu (3000 à l'origine) */
-#define PLAY_MS        16000UL    /* palier plein volume entre les deux fondus */
+#define MUSIC_PASSES    2         /* nombre de lectures COMPLÈTES du morceau */
+#define MUSIC_FADE_MS   6000UL    /* durée du fondu entrant ET du fondu sortant */
 #define STOPPED_MS      4000UL    /* palier "arrêté" après stopMusic()         */
 
-#define T_FADE_IN_END   (MUSIC_FADE_MS)
-#define T_PLAY_END      (T_FADE_IN_END + PLAY_MS)
-#define T_FADE_OUT_END  (T_PLAY_END + MUSIC_FADE_MS)
-#define T_SCENE_END     (T_FADE_OUT_END + STOPPED_MS)
-
-#define SCENE_MS     T_SCENE_END   /* 32 s */
-#define FADE_IN_MS      0UL        /* pas d'intro/outro visuelle : les 4 phases */
+/* Borne de sécurité (10 min) : la vraie fin de scène vient de la musique
+   (voir scene8Render). Elle ne joue que si le bouclage n'était jamais
+   détecté ; Cleanup coupe alors la musique. */
+#define SCENE_MS     600000UL
+#define FADE_IN_MS      0UL        /* pas d'intro/outro visuelle : les phases   */
 #define FADE_OUT_MS     0UL        /* audio sont gérées dans scene8Render       */
 
 /* Cadence : 4 ticks (~17 Hz). Léger exprès : voir le commentaire sur
@@ -82,15 +94,13 @@
     ((ms) == 0UL ? 0UL : \
      ((((ms) * TARGET_HZ + 500UL) / 1000UL) ? (((ms) * TARGET_HZ + 500UL) / 1000UL) : 1UL))
 
-/* Fins de phase, en ticks depuis sceneStart */
-#define T_FADE_IN_END_TICKS   MS_TO_TICKS(T_FADE_IN_END)
-#define T_PLAY_END_TICKS      MS_TO_TICKS(T_PLAY_END)
-#define T_FADE_OUT_END_TICKS  MS_TO_TICKS(T_FADE_OUT_END)
+#define FADE_TICKS      MS_TO_TICKS(MUSIC_FADE_MS)
+#define STOPPED_TICKS   MS_TO_TICKS(STOPPED_MS)
 
 /* ticks -> ms, pour l'affichage uniquement */
 #define TICKS_TO_MS(t)  ((t) * 1000UL / TARGET_HZ)
 
-/* Phases, dans l'ordre chronologique. */
+/* Phases, dans l'ordre chronologique (on ne revient jamais en arrière). */
 #define PHASE_FADE_IN   0
 #define PHASE_PLAYING   1
 #define PHASE_FADE_OUT  2
@@ -103,10 +113,18 @@
 /* ---------------------------------------------------------
    Variables propres à la scène
    --------------------------------------------------------- */
-static int           lastPhase  = -1;        /* dernière phase audio traitée */
-static int           loopCount  = 0;
-static int           loadStatus = AUD_OK;
-static unsigned long nextDrawAt = 0UL;       /* prochain affichage (ticks depuis sceneStart) */
+static int           lastPhase    = -1;          /* dernière phase audio traitée */
+static int           musicPhase   = PHASE_FADE_IN;
+static int           loopCount    = 0;           /* bouclages détectés (cumul)   */
+static int           loadStatus   = AUD_OK;
+static unsigned long nextDrawAt   = 0UL;         /* prochain affichage (ticks depuis sceneStart) */
+
+static unsigned long songTicks    = 0UL;         /* durée d'UNE lecture, mesurée au 1er bouclage */
+static int           fadeOutKnown = 0;           /* 1 dès que fadeOutAt est calculé */
+static unsigned long fadeOutAt    = 0UL;         /* instant du fondu de sortie (ticks) */
+static unsigned long fadeOutStart = 0UL;         /* instant où il a réellement démarré */
+static unsigned long stoppedAt    = 0UL;         /* instant du stopMusic()            */
+static int           scene8Over   = 0;           /* 1 : la scène peut se terminer     */
 
 
 
@@ -152,9 +170,16 @@ static void formatSeconds(char *buf, unsigned long ms)
    ========================================================= */
 static void scene8Init(void)
 {
-    lastPhase  = -1;
-    loopCount  = 0;
-    nextDrawAt = 0UL;
+    lastPhase    = -1;
+    musicPhase   = PHASE_FADE_IN;
+    loopCount    = 0;
+    nextDrawAt   = 0UL;
+    songTicks    = 0UL;
+    fadeOutKnown = 0;
+    fadeOutAt    = 0UL;
+    fadeOutStart = 0UL;
+    stoppedAt    = 0UL;
+    scene8Over   = 0;
 
     font1InitBios();
 
@@ -171,6 +196,11 @@ static void scene8Init(void)
 
     loadStatus = playMusic("audios\\musique.s3m");
 
+    /* Un éventuel drapeau de bouclage périmé (autre passage dans la
+       playlist) ne doit pas être pris pour le premier bouclage de
+       CETTE lecture : on le consomme ici. */
+    (void)hasMusicLooped();
+
     /* La musique vient de démarrer à plein volume "normal" (Gv/Mv
        du fichier, voir stopMusic()/playMusic() dans s3m.c qui
        remettent le fondu à 127/127 au chargement) : pour vraiment
@@ -183,8 +213,10 @@ static void scene8Init(void)
     fadeMusicIn(MUSIC_FADE_MS);
 
     /* Exception au gabarit : le chrono repart ICI, après le chargement
-       de musique.s3m (~290 Ko), pour que ce temps de chargement ne soit
-       pas décompté de la durée de la scène (comme dans l'original). */
+       de musique.s3m (plusieurs centaines de Ko), pour que ce temps de
+       chargement ne soit pas décompté de la durée de la scène — et
+       surtout pour que la durée d'une lecture, mesurée au premier
+       bouclage, parte bien du démarrage de la musique. */
     sceneStart = readTimer();
 }
 
@@ -201,11 +233,11 @@ static void scene8Init(void)
    ========================================================= */
 static void scene8Render(unsigned long elapsed, int phase, unsigned long progress)
 {
-    int  musicPhase;
     int  phaseChanged;
-    char line[40];
+    int  pass;
+    char line[64];                           /* texte affiché : < 36 caractères */
     char elapsedStr[16];
-    char totalStr[16];
+    char songStr[16];
 
     (void)phase; (void)progress;            /* phases audio gérées ci-dessous */
 
@@ -215,10 +247,42 @@ static void scene8Render(unsigned long elapsed, int phase, unsigned long progres
        d'en rater un entre deux images. */
     loopCount += hasMusicLooped();
 
-    if      (elapsed < T_FADE_IN_END_TICKS)  musicPhase = PHASE_FADE_IN;
-    else if (elapsed < T_PLAY_END_TICKS)     musicPhase = PHASE_PLAYING;
-    else if (elapsed < T_FADE_OUT_END_TICKS) musicPhase = PHASE_FADE_OUT;
-    else                                     musicPhase = PHASE_STOPPED;
+    /* Premier bouclage = fin de la première lecture : le temps écoulé
+       depuis le démarrage est la durée d'UNE lecture. La dernière
+       lecture se terminera donc à MUSIC_PASSES * songTicks ; on lance
+       le fondu de sortie FADE_TICKS avant, pour qu'il s'achève avec
+       elle (le drapeau de bouclage précède de peu la fin audible, de
+       l'ordre d'une ligne de motif + la latence du tampon audio). */
+    if (loopCount >= 1 && songTicks == 0UL)
+    {
+        songTicks = elapsed;
+        if ((unsigned long)MUSIC_PASSES * songTicks > FADE_TICKS)
+            fadeOutAt = (unsigned long)MUSIC_PASSES * songTicks - FADE_TICKS;
+        else
+            fadeOutAt = 0UL;
+        fadeOutKnown = 1;
+    }
+
+    /* Machine à états : on n'avance que dans un sens. */
+    if (musicPhase < PHASE_STOPPED && (loadStatus != AUD_OK || !isMusicPlaying()))
+    {
+        musicPhase = PHASE_STOPPED;         /* échec ou pas de son : on abrège */
+    }
+    else if (musicPhase < PHASE_FADE_OUT)
+    {
+        if (musicPhase == PHASE_FADE_IN && elapsed >= FADE_TICKS)
+            musicPhase = PHASE_PLAYING;
+
+        /* Fondu de sortie : à l'instant calculé, ou, au pire, dès que le
+           nombre de lectures voulu est atteint. */
+        if ((fadeOutKnown && elapsed >= fadeOutAt) || loopCount >= MUSIC_PASSES)
+            musicPhase = PHASE_FADE_OUT;
+    }
+    else if (musicPhase == PHASE_FADE_OUT)
+    {
+        if (elapsed >= fadeOutStart + FADE_TICKS)
+            musicPhase = PHASE_STOPPED;
+    }
 
     /* Actions ponctuelles au changement de phase — appelées UNE SEULE
        fois chacune (comparaison à lastPhase), jamais à chaque image :
@@ -231,21 +295,28 @@ static void scene8Render(unsigned long elapsed, int phase, unsigned long progres
     {
         if (musicPhase == PHASE_FADE_OUT)
         {
+            fadeOutStart = elapsed;
             fadeMusicOut(MUSIC_FADE_MS);
         }
         else if (musicPhase == PHASE_STOPPED)
         {
-            stopMusic();   /* coupe le son ET libère les ~290 Ko
-                              de musique.s3m — voir audio.c */
+            stoppedAt = elapsed;
+            stopMusic();   /* coupe le son ET libère la mémoire de
+                              musique.s3m — voir audio.c */
         }
         lastPhase = musicPhase;
     }
+
+    /* Fin de scène : STOPPED_MS après l'arrêt. Le point d'entrée teste
+       scene8Over au prochain appel. */
+    if (musicPhase == PHASE_STOPPED && elapsed >= stoppedAt + STOPPED_TICKS)
+        scene8Over = 1;
 
     /* -------------------------------------------------------
        Affichage — redessiné au changement de phase, ou au plus
        toutes les DRAW_TICKS sinon (largement suffisant pour un
        compteur lisible par un humain). Redessiner à CHAQUE image
-       (clearScreen + 8 lignes de texte + flip, potentiellement
+       (clearScreen + lignes de texte + flip, potentiellement
        70 fois/seconde) monopolisait assez de CPU pour empêcher
        audioUpdate() de suivre le rythme réel du DMA : l'horloge
        interne du moteur audio prenait alors plusieurs secondes de
@@ -257,25 +328,37 @@ static void scene8Render(unsigned long elapsed, int phase, unsigned long progres
     {
         clearScreen(0);
 
-        font1DrawTextCentered( 48, "TEST AUDIO S3M", 15, &FONT1_BIOS);
-        font1DrawTextCentered( 60, "playMusic + fadeIn/fadeOut + stop", 8, &FONT1_BIOS);
+        font1DrawTextCentered( 40, "TEST AUDIO S3M", 15, &FONT1_BIOS);
+        font1DrawTextCentered( 52, "playMusic + fadeIn/fadeOut + stop", 8, &FONT1_BIOS);
 
-        font1DrawTextCentered( 84, "Fichier : musique.s3m", 7, &FONT1_BIOS);
-        font1DrawTextCentered( 96, statusText(loadStatus),
+        font1DrawTextCentered( 72, "Fichier : musique.s3m", 7, &FONT1_BIOS);
+        font1DrawTextCentered( 84, statusText(loadStatus),
                                (loadStatus == AUD_OK) ? 15 : 4, &FONT1_BIOS);
 
-        font1DrawTextCentered(120, phaseText(musicPhase), 14, &FONT1_BIOS);
+        font1DrawTextCentered(108, phaseText(musicPhase), 14, &FONT1_BIOS);
+
+        pass = loopCount + 1;
+        if (pass > MUSIC_PASSES) pass = MUSIC_PASSES;
+        sprintf(line, "lecture %d / %d", pass, MUSIC_PASSES);
+        font1DrawTextCentered(124, line, 15, &FONT1_BIOS);
 
         formatSeconds(elapsedStr, TICKS_TO_MS(elapsed));
-        formatSeconds(totalStr,   T_SCENE_END);
-        sprintf(line, "t = %s / %s", elapsedStr, totalStr);
-        font1DrawTextCentered(140, line, 7, &FONT1_BIOS);
+        if (songTicks != 0UL)
+        {
+            formatSeconds(songStr, TICKS_TO_MS(songTicks));
+            sprintf(line, "t = %s  (1 lecture = %s)", elapsedStr, songStr);
+        }
+        else
+        {
+            sprintf(line, "t = %s", elapsedStr);
+        }
+        font1DrawTextCentered(144, line, 7, &FONT1_BIOS);
 
         sprintf(line, "isMusicPlaying() = %s", isMusicPlaying() ? "OUI" : "NON");
-        font1DrawTextCentered(156, line, 7, &FONT1_BIOS);
+        font1DrawTextCentered(160, line, 7, &FONT1_BIOS);
 
         sprintf(line, "bouclages detectes = %d", loopCount);
-        font1DrawTextCentered(172, line, 7, &FONT1_BIOS);
+        font1DrawTextCentered(176, line, 7, &FONT1_BIOS);
 
         flip();
 
@@ -292,7 +375,10 @@ static void scene8Render(unsigned long elapsed, int phase, unsigned long progres
    ========================================================= */
 static void scene8Cleanup(void)
 {
-    /* stopMusic() a déjà été appelé au passage en phase ARRET. */
+    /* Normalement stopMusic() a déjà été appelé au passage en phase
+       ARRET ; sinon (borne de sécurité SCENE_MS atteinte) on coupe ici. */
+    if (musicPhase != PHASE_STOPPED)
+        stopMusic();
 }
 
 
@@ -300,7 +386,8 @@ static void scene8Cleanup(void)
 
 
 /* =========================================================
-   POINT D'ENTRÉE — gestion du timer (NE PAS MODIFIER)
+   POINT D'ENTRÉE — gestion du timer (gabarit : une seule ligne
+   modifiée, le test de fin, qui tient aussi compte de scene8Over)
    ========================================================= */
 void scene8(void)
 {
@@ -328,8 +415,9 @@ void scene8(void)
 
     elapsed = elapsedTime(sceneStart, now);
 
-    /* 2. Fin de scène : test AVANT le rendu */
-    if (elapsed >= sceneTicks)
+    /* 2. Fin de scène : test AVANT le rendu (borne de sécurité, ou fin
+          anticipée décidée par la scène elle-même : scene8Over) */
+    if (elapsed >= sceneTicks || scene8Over)
     {
         scene8Cleanup();
         initialized = 0;            /* état remis à zéro d'abord... */
