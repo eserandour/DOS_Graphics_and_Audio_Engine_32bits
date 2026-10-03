@@ -142,6 +142,8 @@ void sbAckIRQ(void);
    adresse physique du DÉBUT de ce buffer, les deux moitiés
    devant être contiguës — voir sbAllocDmaBuffer), puis démarre
    le DSP en sortie 8 bits auto-init (commande 0x1C).
+   Nécessite un DSP >= 2.00 (Sound Blaster 2.0 ou plus récent) :
+   les commandes 0x48/0x1C n'existent pas sur un DSP 1.xx.
 
    Le DSP boucle ensuite indéfiniment sur ce buffer et lève une
    IRQ tous les halfLen octets, SANS AUCUN réarmement CPU entre

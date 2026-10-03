@@ -132,8 +132,8 @@ void spriteBlit(const Sprite *spr, int dstX, int dstY)
    spriteBlitKey — blit avec colorKey
    =========================================================
    Même logique que spriteBlit mais les pixels d'index
-   == colorKey ne sont pas écrits. La boucle interne écrit
-   pixel par pixel uniquement pour les lignes concernées.
+   == colorKey ne sont pas écrits. Chaque ligne visible est
+   parcourue pixel par pixel (pas de memcpy possible ici).
    colorKey < 0 → bascule en blit opaque (memcpy).       
    ========================================================= */
 
@@ -333,7 +333,7 @@ void spriteBlitFrameKey(const Sprite *spr, int frameIndex,
    ========================================================= */
 
 /* Copie 'len' octets de la zone logique [offset, offset+len)
-   du SpriteSplit vers dst (near, rowBuf). Une ligne (w <= 320)
+   du SpriteSplit vers dst (rowBuf). Une ligne (w <= 320)
    ne peut chevaucher qu'au plus deux blocs consécutifs,
    puisque chaque bloc fait au moins 320 octets. */
 static void splitCopyOut(const SpriteSplit *spr, long offset,

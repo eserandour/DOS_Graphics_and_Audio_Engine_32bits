@@ -18,7 +18,8 @@
 
 /* Anti-clic : un saut brutal du signal d'une voie (note lancée, coupée ou
    relancée, fin d'échantillon, gros changement de volume) est remplacé
-   par un fondu enchaîné de S3M_XF_LEN échantillons (~3 ms à 11025 Hz)
+   par un fondu enchaîné de S3M_XF_LEN échantillons (~1,5 ms à 22050 Hz,
+   fréquence du moteur ; ~3 ms à 11025 Hz, fréquence de s3m_audit.py)
    entre la dernière valeur de sortie de la voie et le nouveau signal. */
 #define S3M_XF_SHIFT    5
 #define S3M_XF_LEN      (1 << S3M_XF_SHIFT)

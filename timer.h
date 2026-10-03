@@ -35,7 +35,8 @@
 
 /* Valeur à charger dans le PIT pour obtenir TARGET_HZ.
    Le PIT divise sa fréquence d'entrée par ce diviseur.
-   Ex : 1193180 / 70 = 17045 (arrondi). */
+   Ex : 1193180 / 70 = 17045,4 -> 17045 (division entière,
+   tronquée), soit 70,002 Hz réels. */
 #define DIVISOR   (PIT_FREQ / TARGET_HZ)
 
 /* ---------------------------------------------------------

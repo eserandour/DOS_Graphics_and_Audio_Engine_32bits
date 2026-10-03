@@ -145,8 +145,11 @@ int audioInit(void)
     wavInit(MIX_RATE);
 
     /* Constante de temps DSP : formule standard Sound Blaster,
-       tc = 256 - 1000000/fréquence(Hz). Compatible avec toutes
-       les versions de DSP (commande 0x40, voir sblaster.c). */
+       tc = 256 - 1000000/fréquence(Hz). La commande 0x40 est
+       comprise par toutes les versions de DSP (voir sblaster.c) ;
+       la sortie auto-init lancée plus bas exige en revanche un
+       DSP >= 2.00. Le diviseur étant entier, tc = 211 donne en
+       réalité 1000000/45 = 22222 Hz pour MIX_RATE = 22050. */
     tc = (unsigned char)(256U - (unsigned int)(1000000UL / MIX_RATE));
     sbSetTimeConstant(tc);
 
@@ -168,8 +171,8 @@ int audioInit(void)
 
 /* À appeler très régulièrement depuis la boucle principale (voir
    audio.h, section PRINCIPE). Ne fait qu'un travail borné : au
-   plus UN mixage de MIX_BUFFER_SAMPLES octets par moitié, jamais
-   plus d'une fois par appel même si needFillA et needFillB sont
+   plus UN mixage de MIX_BUFFER_SAMPLES octets par moitié et par
+   appel, donc deux au maximum si needFillA et needFillB sont
    tous les deux levés (cas rare d'une frame très lente ayant
    laissé passer deux IRQ). Les drapeaux sont redescendus juste
    après le mixage correspondant. */

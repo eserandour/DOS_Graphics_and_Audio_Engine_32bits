@@ -105,7 +105,7 @@ void font2DrawText(Font2Desc *fd, const char *text,
                    int x, int y);
 
 /* Dessine text centre horizontalement sur SCREEN_WIDTH.
-   Si la chaine depasse 320 px, callee a gauche (x=0).  */
+   Si la chaine depasse 320 px, calee a gauche (x=0).  */
 void font2DrawTextCentered(Font2Desc *fd, const char *text,
                            int y);
 

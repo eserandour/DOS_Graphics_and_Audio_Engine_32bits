@@ -8,7 +8,8 @@ REM SCENEDCL.H / SCENETAB.H (inclus par scene.c).
 REM ATTENTION : les scenes doivent etre numerotees sans trou.
 REM =========================================================
 REM Necessite Open Watcom 1.9 avec wcc386/wlink dans le PATH,
-REM et DOS32A.EXE + STUB32A.EXE accessibles depuis LINK.RSP.
+REM et STUB32A.EXE accessible a l'edition de liens (DOS32A.EXE
+REM n'est necessaire qu'a l'execution de demo.exe).
 REM LINK.RSP, SCENEDCL.H et SCENETAB.H sont GENERES ici.
 REM
 REM -3s  = instructions 386, convention d'appel "stack"

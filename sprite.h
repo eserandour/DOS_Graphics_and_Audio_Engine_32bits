@@ -24,7 +24,8 @@
    taille de bloc : spriteLoad() charge n'importe quelle
    hauteur h en un seul bloc, jusqu'à la mémoire disponible.
    Seule la largeur reste bornée à 320 pixels (rowBuf[320] en
-   interne, cohérent avec la largeur de l'écran).
+   interne, cohérent avec la largeur de l'écran) : elle n'est pas
+   vérifiée, w > 320 déborderait ce buffer.
 
    spriteLoadSplit()/SpriteSplit offrent une alternative qui
    répartit les données en blocs fixes de 32 768 octets
@@ -35,15 +36,16 @@
 
    TRANSPARENCE (colorKey)
    -----------------------
-   Même convention qu'image.c :
+   (image.c, lui, ne gère pas la transparence.)
      colorKey <  0  : blit opaque, tous les pixels copiés.
      colorKey >= 0  : les pixels d'index == colorKey ne sont
                       pas écrits (fond laissé intact).
 
    FEUILLE DE SPRITES (sprite sheet)
    -----------------------------------
-   Un Sprite peut représenter une feuille entière (ex. la
-   police font2). spriteBlitZone / spriteBlitZoneKey
+   Un Sprite peut représenter une feuille entière (ex. une
+   feuille de police comme celles de font2/ ; font2.c utilise
+   toutefois son propre chargeur, pas ce module). spriteBlitZone / spriteBlitZoneKey
    extraient un rectangle (srcX, srcY, zoneW, zoneH) depuis
    la feuille et le copient dans le backbuffer, sans aucun
    accès disque.

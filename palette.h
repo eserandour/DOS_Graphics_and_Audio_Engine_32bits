@@ -131,16 +131,21 @@ void lerpPalette(Color *dest, Color *palA, Color *palB, float t);
    Utile pour les effets de fondu enchaîné. */
 void fadePalette(Color *pal, float t);
 
-/* Décale toutes les couleurs d'un cran vers la gauche dans
-   l'intervalle [start, end]. La couleur start est perdue,
-   la couleur end reçoit l'ancienne valeur de start.
+/* Fait tourner les couleurs d'un cran vers la gauche dans
+   l'intervalle [start, end] : chaque entrée reçoit la valeur
+   de son voisin de droite, et end reçoit l'ancienne valeur de
+   start (rotation : aucune couleur n'est perdue).
+   Envoie ensuite la palette au DAC via setPalette(), qui attend
+   le retrace vertical (jusqu'à ~14 ms).
    Crée un effet de défilement des couleurs vers la gauche. */
 void cyclePaletteLeft(Color *pal, int start, int end);
 
 /* Décale toutes les couleurs d'un cran vers la droite dans
    l'intervalle [start, end]. La couleur end est sauvegardée,
    chaque entrée reçoit la valeur de son voisin de gauche, puis
-   la sauvegarde est replacée en start.
+   la sauvegarde est replacée en start (rotation).
+   Envoie ensuite la palette au DAC via setPalette(), qui attend
+   le retrace vertical (jusqu'à ~14 ms).
    Crée un effet de défilement des couleurs vers la droite. */
 void cyclePaletteRight(Color *pal, int start, int end);
 
@@ -175,8 +180,9 @@ void buildGreenPalette(Color *pal);
 /* Génère un cercle chromatique HSV complet :
    index 0   → noir (r=g=b=0)
    index 1-255 → teinte sur 360° à saturation et valeur max.
-   Les décalages de 128 dans l'index donnent la couleur
-   complémentaire exacte, utile pour les effets de contraste. */
+   Un décalage de 128 dans l'index donne une teinte décalée
+   d'environ 180° (128/255 x 360 = 180,7°), soit quasiment la
+   complémentaire, utile pour les effets de contraste. */
 void buildRainbowPalette(Color *pal);
 
 #endif /* PALETTE_H */

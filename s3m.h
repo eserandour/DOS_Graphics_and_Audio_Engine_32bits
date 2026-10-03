@@ -6,8 +6,9 @@
    =========================================================
    Environnement : Open Watcom 1.9, DOS
 
-   SOUS-ENSEMBLE SUPPORTÉ (volontairement limité — voir
-   les notes de audio.c pour le détail complet) :
+   FONCTIONNALITÉS SUPPORTÉES (tous les effets standard de
+   Scream Tracker 3, à l'exception de ceux listés comme ignorés
+   plus bas ; cet en-tête est la référence détaillée) :
      - Échantillons PCM non compressés, 8 ou 16 bits, mono
        ou stéréo (convertis au chargement en 8 bits non
        signés mono, format natif du moteur de mixage).
@@ -98,7 +99,8 @@
 
    ANTI-CLIC : un saut brutal du signal d'une voie (note lancée, coupée
    ou relancée, fin d'échantillon, gros changement de volume) est lissé par
-   un fondu enchaîné de ~3 ms (S3M_XF_LEN échantillons, voir s3m.c). Les
+   un fondu enchaîné de S3M_XF_LEN (32) échantillons, soit ~1,5 ms à
+   22050 Hz (fréquence du moteur, voir audio.h) — voir s3m.c. Les
    petits pas de volume (glissements, fondus) ne sont pas modifiés.
 
    ÉCHELLE DES PÉRIODES ET FIDÉLITÉ DES EFFETS DE HAUTEUR : les périodes

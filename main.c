@@ -5,8 +5,9 @@
    Mode vidéo    : 13h (320x200, 256 couleurs)
 
    Échap est détecté par un handler INT 09h installé dans
-   keyboard.c, qui lève quitRequested sans consommer la touche.
-   main ne lit jamais le buffer clavier.
+   keyboard.c, qui lève quitRequested. Ce handler ne chaîne pas
+   vers le BIOS : les touches sont consommées et le buffer
+   clavier BIOS reste vide (main ne le lit d'ailleurs jamais).
    ========================================================= */
 
 #include <stdlib.h>

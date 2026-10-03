@@ -36,7 +36,7 @@ extern unsigned long sceneStart;
 
 /* Callback appelé par sceneSignalEnd() quand une scène se déclare
    terminée. L'implémentation (ex: main.c) décide quelle scène vient
-   ensuite et avec quelle transition.
+   ensuite.
    Signature : void handler(Scene sceneQuiVientDeFinir); */
 typedef void (*SceneEndHandler)(Scene);
 extern SceneEndHandler onSceneEnd;

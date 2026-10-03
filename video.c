@@ -90,13 +90,16 @@ void setVideoMode(unsigned char mode)
 
 /* Cache le curseur texte via l'interruption BIOS 10h.
    AH = 01h : fonction "Set Cursor Shape"
-   CX = 1400h : bits 5-0 de CH = 0x14 (curseur invisible).
-   Quand le bit 5 de CH est à 1, le curseur est masqué. */
+   CX = 1400h : ligne de début du curseur = 0x14 (20), au-delà
+   de la hauteur de la cellule de caractère : le curseur n'est
+   plus dessiné. (La méthode documentée par le BIOS consiste à
+   mettre le bit 5 de CH à 1, ex. CX = 2000h ; 0x14 n'a pas ce
+   bit à 1, il masque le curseur par débordement.) */
 void cursorOff(void)
 {
     _asm {
         mov ah, 01h     /* fonction BIOS : forme du curseur  */
-        mov cx, 1400h   /* 0x14 en CH = curseur invisible    */
+        mov cx, 1400h   /* début 0x14 > hauteur cellule      */
         int 10h
     }
 }

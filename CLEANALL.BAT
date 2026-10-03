@@ -2,4 +2,4 @@
 del *.obj
 del *.out
 del *.err
-del *.exe
+del demo.exe

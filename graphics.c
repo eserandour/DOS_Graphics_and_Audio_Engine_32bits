@@ -51,8 +51,8 @@ void putPixel(int x, int y, unsigned char color)
 
 unsigned char getPixel(int x, int y)
 {
-    /* Pas de vérification : getPixel hors bornes est un bug
-       appelant ; on retourne 0 par convention. */
+    /* Lecture hors bornes : on ne lit pas hors du backbuffer,
+       on retourne 0 par convention. */
     if (!IN_BOUNDS(x, y)) return 0;
     return backbuffer[OFFSET(x, y)];
 }

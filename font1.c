@@ -24,13 +24,14 @@
    segment:offset historique) sur tous les PC IBM compatibles. */
 static unsigned char *font1Bios = NULL;
 
-/* Font1Bank sous-jacentes, allouées dynamiquement par font1Init*()(). */
+/* Font1Bank sous-jacentes, allouées dynamiquement par font1InitBank*(). */
 Font1Bank *font1Bank8x8   = NULL;
 Font1Bank *font1Bank8x16  = NULL;
 Font1Bank *font1Bank16x16  = NULL;
 
 /* Structures Font1 globales prêtes à l'emploi.
-   Initialisées par font1InitBios() et font1Init*().
+   Initialisées statiquement ci-dessous ; font1InitBank*()
+   renseigne ensuite le champ .bank.
    FONT1_BIOS.bank = NULL : la police vient directement de la ROM,
    pas d'une Font1Bank allouée en mémoire.
 

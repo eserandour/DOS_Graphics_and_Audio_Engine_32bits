@@ -68,6 +68,10 @@
    le .raw de dimensions srcW x srcH dans le backbuffer,
    coin superieur gauche en (dstX, dstY).
    Le reste du backbuffer n'est pas modifie.
+   AUCUN clipping : l'image doit tenir entierement a l'ecran
+   (dstX >= 0, dstY >= 0, dstX + srcW <= 320, dstY + srcH <= 200),
+   et srcW ne doit pas depasser 320 (buffer de ligne interne).
+   Pour un blit clippe, utiliser sprite.h.
    Retourne IMG_OK ou un code IMG_ERR_*. */
 int drawImage(const char *palFile, const char *rawFile,
               int srcW, int srcH, int dstX, int dstY);

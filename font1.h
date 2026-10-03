@@ -15,8 +15,13 @@
      font1DrawChar(x, y, 'A', 255, &FONT1_BANK_16X16);
 
    Pour ajouter une nouvelle police :
-     1. Déclarer une Font1Bank dans font1/.
-     2. La charger avec _initFont1Bank() + font1DefineChar*()().
+     1. Générer un fichier de glyphes dans font1/ (OUTILS/fonts/ :
+        psf2c.py, png2c.py ou ttf2c.py), qui appelle
+        font1DefineChar*() pour chaque caractère.
+     2. Dans font1.c, ajouter une fonction font1InitBank*() qui
+        alloue la Font1Bank, la prépare avec _initFont1Bank()
+        (fonction static, interne à font1.c) puis appelle le
+        chargeur de glyphes.
      3. Créer une Font1 pointant vers cette Font1Bank.
 
    Fonctionnement d'un glyphe :
@@ -84,7 +89,7 @@
 /* Font1Size — identifiant de la taille des glyphes.
    N'encode PAS l'espacement horizontal : ce rôle
    est porté exclusivement par Font1.size, renseigné
-   explicitement dans font1InitBank*(). */
+   par l'initialisation statique des Font1 dans font1.c. */
 typedef enum {
     FONT1_SIZE_8X8   = 0,
     FONT1_SIZE_8X16  = 1,
@@ -96,7 +101,8 @@ typedef enum {
    --------------------------------------------------------- */
 
 /* Contient tous les glyphes d'une police bitmap personnelle.
-   - size            : taille des glyphes (8 ou 16)
+   - size            : taille des glyphes (Font1Size :
+                       8x8, 8x16 ou 16x16)
    - count           : nombre de glyphes définis
    - capacity        : nombre max de glyphes (256)
    - bytes_per_glyph : taille en octets d'un glyphe
@@ -124,7 +130,7 @@ typedef enum {
 } Font1Type;
 
 /* ---------------------------------------------------------
-   Font — structure unifiée (BIOS ou Font1Bank)
+   Font1 — structure unifiée (BIOS ou Font1Bank)
    --------------------------------------------------------- */
 
 /* Structure passée à toutes les fonctions de rendu.
@@ -145,13 +151,13 @@ typedef struct {
 /* Police BIOS ROM 8x8 (128 caractères IBM/ASCII). */
 extern Font1 FONT1_BIOS;
 
-/* Polices personnelles initialisées par font1Init*()(). */
+/* Polices personnelles initialisées par font1InitBank*(). */
 extern Font1 FONT1_BANK_8X8;    /* font1Bank8x8 */
 extern Font1 FONT1_BANK_8X16;   /* font1Bank8x16 */
 extern Font1 FONT1_BANK_16X16;  /* font1Bank16x16 */
 
 /* Font1Bank sous-jacentes allouées dynamiquement.
-   Initialisées par font1InitBank8x8/16x16(), NULL avant. */
+   Initialisées par font1InitBank8x8/8x16/16x16(), NULL avant. */
 extern Font1Bank *font1Bank8x8;
 extern Font1Bank *font1Bank8x16;
 extern Font1Bank *font1Bank16x16;
@@ -218,8 +224,8 @@ void font1DefineChar16x16(Font1Bank *fb, unsigned char c,
    --------------------------------------------------------- */
 
 /* Dessine un caractère avec la police f.
-   Fonctionne avec FONT1_BIOS, FONT1_BANK_8X8, FONT1_BANK_16X16
-   ou toute autre Font1 correctement initialisée. */
+   Fonctionne avec FONT1_BIOS, FONT1_BANK_8X8, FONT1_BANK_8X16,
+   FONT1_BANK_16X16 ou toute autre Font1 correctement initialisée. */
 void font1DrawChar(int x, int y, unsigned char c,
               unsigned char color, Font1 *f);
 
