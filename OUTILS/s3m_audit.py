@@ -11,7 +11,7 @@ et le VOLUME. Un effet est "OK" si au plus 3 ticks s'écartent au-delà de la
 tolérance (les transitions de ligne ne sont pas alignées au dixième de tick près).
 
 Prérequis : python3, gcc, ffmpeg compilé avec libopenmpt.
-Usage     : python s3m_audit.py [chemin/vers/s3m.c]        (défaut : ./s3m.c)
+Usage     : python3 s3m_audit.py [chemin/vers/s3m.c]        (défaut : ./s3m.c)
 """
 import math, os, struct, subprocess, sys, tempfile, wave
 
