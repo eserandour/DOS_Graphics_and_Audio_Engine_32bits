@@ -1,19 +1,14 @@
 # DOS Graphics & Audio Engine (32 bits)
 
-*Dernière version : 03/10/2026 à 02h36*
+*Dernière version : 03/10/2026*
 
 Moteur graphique et audio pour **DOS**, écrit en C ANSI avec **Open Watcom 1.9**, mode VGA **13h** (320×200, 256 couleurs) et carte **Sound Blaster** (ou compatible), en modèle mémoire **flat 32 bits** (DOS/32A).
 
-Accès direct au matériel PC (VRAM, PIT, clavier, DMA/DSP), sans dépendance à une bibliothèque graphique ou audio tierce. Une playlist de scènes de démonstration (`scenes/`, 9 fournies, jusqu'à 100 gérées) illustre l'ensemble des modules : palette, polices bitmap, primitives 2D, rotozoom, musique tracker S3M...
+Accès direct au matériel PC (VRAM, PIT, clavier, DMA/DSP), sans dépendance à une bibliothèque graphique ou audio tierce. Une playlist de 9 scènes de démonstration (`scenes/`) illustre l'ensemble des modules : palette, polices bitmap, primitives 2D, rotozoom, musique tracker S3M... Un gabarit (`scenes/scene_template.c`) donne la structure à suivre pour écrire ses propres scènes en gérant correctement le timer.
 
-<p align="center">
-  <img src="CAPTURES/demo_009.png" width="45%" alt="Police bitmap 16x16">
-  <img src="CAPTURES/demo_007.png" width="45%" alt="Écran d'intro">
-</p>
-<p align="center">
-  <img src="CAPTURES/demo_012.png" width="45%" alt="Tunnel de cercles concentriques">
-  <img src="CAPTURES/demo_015.png" width="45%" alt="Polygones remplis en rebond">
-</p>
+[![Police bitmap 16x16](CAPTURES/demo_009.png)](CAPTURES/demo_009.png) [![Écran d'intro](CAPTURES/demo_007.png)](CAPTURES/demo_007.png)
+
+[![Tunnel de cercles concentriques](CAPTURES/demo_012.png)](CAPTURES/demo_012.png) [![Polygones remplis en rebond](CAPTURES/demo_015.png)](CAPTURES/demo_015.png)
 
 ---
 
@@ -27,7 +22,7 @@ Accès direct au matériel PC (VRAM, PIT, clavier, DMA/DSP), sans dépendance à
 - [Exécution](#exécution)
 - [Exemple minimal](#exemple-minimal)
 - [Scènes de démonstration](#scènes-de-démonstration)
-- [Ajouter une scène](#ajouter-une-scène)
+  - [Écrire une nouvelle scène](#écrire-une-nouvelle-scène)
 - [Outils annexes (OUTILS/)](#outils-annexes-outils)
 - [Limites connues](#limites-connues)
 - [Licence](#licence)
@@ -44,8 +39,8 @@ Accès direct au matériel PC (VRAM, PIT, clavier, DMA/DSP), sans dépendance à
 - **Texte bitmap** — `font1` (glyphes ROM BIOS ou personnels, 8×8/8×16/16×16, accents français CP850) et `font2` (rendu par feuille de sprites).
 - **Timer haute résolution** — reprogrammation du PIT à 70 Hz, avec chaînage vers l'ISR BIOS d'origine pour ne pas casser l'horloge DOS.
 - **Clavier** — détection bas niveau de la touche Échap via l'interruption 09h.
-- **Audio** — pilote Sound Blaster bas niveau (détection `BLASTER`, DSP, DMA en boucle auto-init sans clic), lecteur de modules **S3M** (vitesse, tempo, volumes, glissements, portamento, vibrato, arpège, offset) et mixeur d'effets **WAV** (8/16 bits, mono/stéréo, rééchantillonnage à la volée), mixage effectué hors interruption.
-- **Gestionnaire de scènes** — jusqu'à 100 scènes (`scene0.c` à `scene99.c`), détectées et enregistrées automatiquement à la compilation. Chaque scène gère son propre minutage et signale sa fin ; l'enchaînement (playlist, bouclage) est décidé par `main.c`.
+- **Audio** — pilote Sound Blaster bas niveau (détection `BLASTER`, DSP, DMA en boucle auto-init sans clic), lecteur de modules **S3M** (vitesse, tempo, sauts, volumes, glissements, portamento, tone portamento, vibrato, tremolo, tremor, arpège, offset, retrigger, finetune, boucle de motif, note retardée, coupure de note, retard de ligne...) et mixeur d'effets **WAV** (8/16 bits, mono/stéréo, rééchantillonnage à la volée), mixage effectué hors interruption.
+- **Gestionnaire de scènes** — chaque scène gère son propre minutage (en ticks du timer, à partir d'un gabarit commun) et signale sa fin ; l'enchaînement (playlist, bouclage) est décidé par `main.c`.
 
 ## Structure du dépôt
 
@@ -67,11 +62,12 @@ DOS_Graphics_and_Audio_Engine_32bits/
 │
 ├── audio.c / audio.h     Orchestrateur audio (musique + effets)
 ├── sblaster.c / sblaster.h  Pilote bas niveau Sound Blaster (DSP + DMA)
-├── s3m.c / s3m.h         Lecteur de modules musicaux .s3m
+├── s3m.c / s3m.h         Lecteur de modules musicaux .s3m (effets S3M étendus)
 ├── wav.c / wav.h         Chargement et mixage d'effets .wav
 │
-├── scene.c / scene.h     Gestionnaire de scènes (enum SCENE_0 … SCENE_99, playlist, transitions)
-├── scenes/               Scènes (scene0.c … scene8.c fournies, jusqu'à scene99.c)
+├── scene.c / scene.h     Gestionnaire de scènes (playlist, transitions)
+├── scenes/               9 scènes de démonstration (scene0.c … scene8.c)
+│   └── scene_template.c  Gabarit pour écrire une scène (gestion du timer)
 │
 ├── font1/                Données des polices bitmap personnelles
 ├── font2/                Feuilles de sprites de police + palettes
@@ -79,36 +75,33 @@ DOS_Graphics_and_Audio_Engine_32bits/
 ├── audios/               Musique de démo (musique.s3m)
 ├── CAPTURES/             Captures d'écran de la démo
 │
-├── OUTILS/               Scripts Python de conversion d'assets
+├── OUTILS/               Scripts Python de conversion et d'extraction d'assets
+│   └── s3m_extract.py    Extraction des samples d'un .s3m en .wav
 │
-├── BUILD.BAT             Compilation (wcc386 + wlink), génère les 3 fichiers ci-dessous
+├── BUILD.BAT             Compilation (wcc386 + wlink)
 ├── CLEAN.BAT / CLEANALL.BAT  Nettoyage des fichiers générés
-└── LICENSE               GNU GPL v3
-
-Fichiers générés par BUILD.BAT (ne pas modifier à la main) :
 ├── LINK.RSP              Script d'édition de liens (DOS/32A)
-├── SCENEDCL.H            Prototypes des scènes présentes (inclus par scene.c)
-└── SCENETAB.H            Entrées du tableau des scènes (inclus par scene.c)
+└── LICENSE               GNU GPL v3
 ```
 
 ## Modules
 
-| Module | Rôle | Dépend de |
-|---|---|---|
-| `video` | Backbuffer, mode vidéo, retrace vertical | — |
-| `palette` | Palette VGA (DAC), fade, cycle | `video` |
-| `graphics` | Primitives de dessin 2D | `video` |
-| `image` | Chargement one-shot d'images | `video`, `palette` |
-| `sprite` | Sprites préchargés, feuilles de sprites | `video` |
-| `font1` | Texte bitmap multi-tailles | `video`, `graphics` |
-| `font2` | Texte par feuille de sprites | `video` |
-| `timer` | Timer PIT 70 Hz | — |
-| `keyboard` | Détection Échap | `app` |
-| `sblaster` | Pilote DSP + DMA Sound Blaster | — |
-| `s3m` | Lecteur de modules musicaux | — |
-| `wav` | Mixeur d'effets sonores | — |
-| `audio` | Orchestrateur audio | `sblaster`, `s3m`, `wav` |
-| `scene` | Enchaînement des scènes | `timer`, `SCENEDCL.H`, `SCENETAB.H` (générés) |
+| Module     | Rôle                                     | Dépend de                |
+| ---------- | ---------------------------------------- | ------------------------ |
+| `video`    | Backbuffer, mode vidéo, retrace vertical | —                        |
+| `palette`  | Palette VGA (DAC), fade, cycle           | `video`                  |
+| `graphics` | Primitives de dessin 2D                  | `video`                  |
+| `image`    | Chargement one-shot d'images             | `video`, `palette`       |
+| `sprite`   | Sprites préchargés, feuilles de sprites  | `video`                  |
+| `font1`    | Texte bitmap multi-tailles               | `video`, `graphics`      |
+| `font2`    | Texte par feuille de sprites             | `video`                  |
+| `timer`    | Timer PIT 70 Hz                          | —                        |
+| `keyboard` | Détection Échap                          | `app`                    |
+| `sblaster` | Pilote DSP + DMA Sound Blaster           | —                        |
+| `s3m`      | Lecteur de modules musicaux              | —                        |
+| `wav`      | Mixeur d'effets sonores                  | —                        |
+| `audio`    | Orchestrateur audio                      | `sblaster`, `s3m`, `wav` |
+| `scene`    | Enchaînement des scènes                  | `timer`                  |
 
 Chaque `.h` documente en tête de fichier le format de données et les conventions d'usage du module correspondant.
 
@@ -118,35 +111,26 @@ Chaque `.h` documente en tête de fichier le format de données et les conventio
 - **[DOS/32A](http://sourceforge.net/projects/dos32a/)** (`DOS32A.EXE` + `STUB32A.EXE`), à côté de `demo.exe` (ou dans le `PATH`) au lancement.
 - Un PC réel (386 ou plus) avec carte VGA, ou un émulateur DOS : [DOSBox](https://www.dosbox.com/), [DOSBox-X](https://dosbox-x.com/), [86Box](https://86box.net/).
 - Pour le son : carte **Sound Blaster** (ou compatible) configurée via la variable d'environnement `BLASTER` (ex. `SET BLASTER=A220 I5 D1 H5 P330 T6`). En son absence, le moteur audio se désactive proprement.
-- Python 3 + Pillow, uniquement pour les scripts de `OUTILS/` (facultatif pour compiler/exécuter la démo).
+- Python 3, uniquement pour les scripts de `OUTILS/` (facultatif pour compiler/exécuter la démo) : Pillow pour la conversion d'images et de polices ; `s3m_extract.py` n'utilise que la bibliothèque standard.
 
 ## Compilation
 
-Depuis une invite DOS (DOSBox, DOSBox-X, DOS réel), dans le répertoire du projet :
-
-```bat
+```
 BUILD.BAT
 ```
 
-Aucun paramètre. `BUILD.BAT` est écrit en batch DOS pur (compatible `COMMAND.COM` : pas de `set /a`, de `for /L` ni de `||`) et enchaîne :
+Compile chaque module avec `wcc386 -3s -mf -os -I.` (instructions 386, modèle flat, optimisation taille), puis lie via `wlink @LINK.RSP` pour produire `demo.exe`.
 
-1. la génération de `LINK.RSP`, `SCENEDCL.H` et `SCENETAB.H` d'après les fichiers `scenes\scene0.c` à `scenes\scene99.c` **présents** ;
-2. la compilation de chaque module avec `wcc386 -3s -mf -os -I.` (instructions 386, modèle flat, optimisation taille) ;
-3. la compilation de chaque scène détectée ;
-4. l'édition de liens `wlink @LINK.RSP`, qui produit `demo.exe`.
-
-La compilation s'arrête à la première erreur sur les modules fixes. Pour une scène qui ne compile pas, lire les messages à l'écran (le lien échouera ensuite sur le `.obj` manquant).
-
-```bat
+```
 CLEAN.BAT       REM supprime .obj / .out / .err
 CLEANALL.BAT    REM idem + supprime aussi demo.exe
 ```
 
-> `LINK.RSP` explicite les directives DOS/32A (format `OS2 LE`, stub `stub32a.exe`). Il est **regénéré à chaque build** : pour changer ces directives (par exemple pour utiliser `SYSTEM STUB32A`, si votre installation Watcom reconnaît ce système), modifier les lignes `echo` correspondantes de `BUILD.BAT`.
+> `LINK.RSP` explicite les directives DOS/32A (format `OS2 LE`, stub `stub32a.exe`). Si votre installation Watcom reconnaît déjà le système `STUB32A`, `LINK.RSP` peut être réduit à la ligne `SYSTEM STUB32A`.
 
 ## Exécution
 
-```bat
+```
 demo.exe
 ```
 
@@ -154,7 +138,7 @@ Boucle jusqu'à **Échap**.
 
 ## Exemple minimal
 
-```c
+```
 #include "video.h"
 #include "palette.h"
 #include "graphics.h"
@@ -187,46 +171,68 @@ int main(void)
 
 ## Scènes de démonstration
 
-| # | Scène | Contenu |
-|---|---|---|
-| 0 | `scene0.c` | Écran noir (3 s, calage des captures vidéo) |
-| 1 | `scene1.c` | Pixels aléatoires (LCG) avec fondu d'entrée/sortie |
-| 2 | `scene2.c` | Palette VGA : cycle de couleurs, interpolation (lerp) |
-| 3 | `scene3.c` | Polices `font1` : BIOS et personnelles, 8×8/8×16/16×16 |
-| 4 | `scene4.c` | Texte via `font2` (feuille de sprites) |
-| 5 | `scene5.c` | Scrolling de texte, horizontal puis vertical |
-| 6 | `scene6.c` | Rotozoom (rotation + zoom) sur une image 256×256 |
-| 7 | `scene7.c` | Tunnel, plasma, flocon de Koch, rebond de polygones |
+| # | Scène      | Contenu                                                                                   |
+| - | ---------- | ----------------------------------------------------------------------------------------- |
+| 0 | `scene0.c` | Écran noir (3 s, calage des captures vidéo)                                               |
+| 1 | `scene1.c` | Pixels aléatoires (LCG) avec fondu d'entrée/sortie                                        |
+| 2 | `scene2.c` | Palette VGA : cycle de couleurs, interpolation (lerp)                                     |
+| 3 | `scene3.c` | Polices `font1` : BIOS et personnelles, 8×8/8×16/16×16                                    |
+| 4 | `scene4.c` | Texte via `font2` (feuille de sprites)                                                    |
+| 5 | `scene5.c` | Scrolling de texte, horizontal puis vertical                                              |
+| 6 | `scene6.c` | Rotozoom (rotation + zoom) sur une image 256×256                                          |
+| 7 | `scene7.c` | Tunnel, plasma, flocon de Koch, rebond de polygones                                       |
 | 8 | `scene8.c` | Cycle de vie audio : `playMusic` → `fadeMusicIn` → lecture → `fadeMusicOut` → `stopMusic` |
 
 Ordre et bouclage définis par le tableau `playlist[]` dans `main.c`.
 
-Une scène est désignée par une constante de l'énumération `Scene` déclarée dans `scene.h` : `SCENE_0` à `SCENE_99`, qui correspondent à `scenes\scene0.c` à `scenes\scene99.c`.
+Toutes les scènes suivent la même structure, celle de `scenes/scene_template.c` (`scene0.c` en est une version réduite, sans rendu ni fondu). Leur minutage repose sur les **ticks** du timer (70 Hz) plutôt que sur des millisecondes.
 
-## Ajouter une scène
+### Écrire une nouvelle scène
 
-1. Créer `scenes\sceneN.c` (N entre 0 et 99) contenant une fonction `void sceneN(void)`, appelée à chaque image, qui appelle `sceneSignalEnd()` quand la scène est terminée (voir `scene1.c` comme modèle).
-2. L'ajouter à la playlist dans `main.c`, avec la constante `SCENE_N` correspondante.
-3. Relancer `BUILD.BAT`.
+`scenes/scene_template.c` est le point de départ : il fournit la gestion du timer, il ne reste qu'à remplir les zones repérées par des bandeaux `VOTRE CODE ICI`.
 
-Il n'y a rien à modifier dans `scene.c`, `scene.h` ni `LINK.RSP` : la scène est détectée, compilée, déclarée et liée automatiquement. Les constantes `SCENE_0` à `SCENE_99` existent déjà dans `scene.h`.
+**Structure d'une scène**
 
-> **Attention** — les scènes doivent être numérotées **sans trou** (0, 1, 2, … N-1). La table des scènes est remplie dans l'ordre des fichiers trouvés : un `scene5.c` manquant décalerait toutes les scènes suivantes.
+| Zone                  | Rôle                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------ |
+| Réglages              | `SCENE_MS`, `FADE_IN_MS`, `FADE_OUT_MS` (durées en ms), `FRAME_TICKS` (cadence)       |
+| Variables             | Données propres à la scène (`static`, niveau fichier)                                 |
+| `sceneXInit()`        | Appelée **une fois** au lancement : chargement des ressources, état initial           |
+| `sceneXRender()`      | Appelée à chaque image : `phase` (0 intro, 1 corps, 2 outro), `progress` (0 à 1000 dans la phase), `elapsed` (ticks écoulés) |
+| `sceneXCleanup()`     | Appelée **une fois** à la fin : libération de ce qu'`Init` a alloué                   |
+| `sceneX()`            | Point d'entrée, gestion du timer : **à ne pas modifier** (seul le nom change)         |
+
+**Règles du timer**
+
+- On raisonne en **ticks** (70 Hz, 1 tick ≈ 14,3 ms). Les durées longues s'écrivent en ms et sont converties une fois par `MS_TO_TICKS` (arrondi au plus proche, minimum 1 tick ; `0` reste `0`, ce qui supprime la phase). La cadence s'écrit directement en ticks avec `FRAME_TICKS` : 1 = 70 Hz, 2 = 35 Hz, 3 = 23 Hz, 4 = 17,5 Hz.
+- `sceneStart` est posé une seule fois, au premier appel, avant `Init` : c'est l'unique référence de temps de la scène.
+- La fonction ne **bloque jamais** (ni `pause()` ni boucle d'attente) : `main.c` appelle `audioUpdate()` entre deux appels.
+- La cadence avance par **pas fixes** (`lastFrame += FRAME_TICKS`), sans dérive ; en cas de retard important, le retard est abandonné au lieu d'être rattrapé en rafale.
+- La fin de scène est testée **avant** le rendu. L'état est remis à zéro **avant** `sceneSignalEnd()`, pour qu'une scène relancée aussitôt (bouclage de la playlist) reparte propre.
+
+**Scènes à plusieurs étapes.** Pour une scène composée de plusieurs sous-écrans (`scene2`, `scene3`, `scene7`, `scene8`), on met `FADE_IN_MS`/`FADE_OUT_MS` à `0UL` si besoin et on déduit l'étape courante de `elapsed` (`elapsed / DUREE_ETAPE_TICKS`) au lieu de relancer un chronomètre à chaque étape, qui ferait dériver la durée totale.
+
+**Créer une scène.** Copier `scene_template.c` en `scenes/sceneN.c`, renommer `sceneX` / `sceneXInit` / `sceneXRender` / `sceneXCleanup` en `sceneN…`, régler les durées et remplir les zones. Puis déclarer la scène (`SCENE_N` dans `scene.h`, tableau `scenes[]` de `scene.c`) et l'ajouter à `playlist[]` dans `main.c`. `BUILD.BAT` détecte automatiquement les fichiers `scenes\scene0.c` à `scenes\scene99.c` ; `scene_template.c`, qui ne porte pas un nom de ce type, n'est jamais compilé.
 
 ## Outils annexes (OUTILS/)
 
 - **`vgatool.py`** — convertit une image en `.raw` + `.pal`, ou visualise une palette existante.
 - **`gen_palettes.py`** — régénère les fichiers `.pal` procéduraux du projet et leurs aperçus PNG à partir des fonctions `build...Palette()` de `palette.c`.
 - **`fonts/`** — conversion de polices TrueType, PNG ou PSF vers le format `Font1Bank` (`ttf2c.py`, `png2c.py`, `psf2c.py`).
+- **`s3m_extract.py`** — extrait les samples d'un fichier `.s3m` en `.wav` (un fichier par sample, fréquence = `C2Spd`). Python 3 seul, sans dépendance :
+
+  ```
+  python s3m_extract.py audios/musique.s3m dossier_sortie
+  ```
+
+  Sont ignorés les instruments AdLib et les samples compressés ; les points de boucle sont affichés mais pas écrits dans les WAV. Utile pour réutiliser les sons d'un module comme effets (`wav.c`) ou pour les retravailler dans un tracker.
 - **`DUMPPAL.C`** — inspection du contenu d'un fichier `.pal`.
 
 ## Limites connues
 
 - Mode 13h uniquement (320×200, 256 couleurs).
-- Lecteur S3M partiel : vitesse, tempo, sauts, volume, glissements de volume, portamento (par pas et tone portamento), vibrato, arpège et offset sont supportés ; tremolo, tremor, retrig et panning sont ignorés (la note se déclenche quand même) ; voir l'en-tête de `s3m.h` pour le détail exact.
+- Lecteur S3M : échantillons PCM non compressés uniquement, les voies sont mixées en mono. Tous les effets standard de Scream Tracker 3 sont pris en charge (A, B, C, D, E, F, G, H, I, J, K, L, O, Q, R, T, U, V, et S1x, S2x, S3x, S4x, SBx, SCx, SDx, SEx), avec mémoire d'effet. Sont ignorés (la note se déclenche quand même) : le filtre (S0x), le panoramique (S8x, SAx), le funk repeat (SFx) et les extensions non standard ; l'en-tête de `s3m.h` donne le détail exact. La fidélité du vibrato et du tremolo est une approximation de Scream Tracker 3, suffisante pour la démo mais pas bit-exacte.
 - Jusqu'à `S3M_MAX_CHANNELS` (16) voies mixées et `WAV_MAX_VOICES` (4) effets simultanés.
-- 100 scènes au maximum (`scene0.c` à `scene99.c`, limite fixée par l'`enum` de `scene.h` et par les listes de `BUILD.BAT`), numérotées sans trou.
-- `BUILD.BAT` recompile tout à chaque exécution et, sous DOS, ses lignes de commande sont limitées à 127 caractères (d'où les boucles par groupes de 10 scènes).
 - Testé uniquement avec Open Watcom 1.9 + DOS/32A.
 
 ## Licence
