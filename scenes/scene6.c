@@ -16,8 +16,11 @@
 
    ARITHMETIQUE VIRGULE FIXE 16.16
    --------------------------------
-   Pas de FPU garanti sur un 386 minimal (le 80387 est une
-   puce séparée en option jusqu'au 486DX). 1.0 = 65536L (FP_ONE).
+   Virgule fixe pour la boucle par pixel : sur un 386 (sans
+   80387, puce en option jusqu'au 486DX) ou un 486SX, les calculs
+   flottants seraient émulés, donc très lents à cette échelle.
+   D'autres scènes (scene2, scene7) et palette.c utilisent des
+   float hors des boucles critiques. 1.0 = 65536L (FP_ONE).
 
    DÉCOUPAGE DE LA TEXTURE EN DEUX BLOCS
    ------------------------------------
@@ -25,9 +28,9 @@
    de 128 lignes, tex0 (lignes 0..127) et tex1 (lignes 128..255),
    accédés via la macro TEX_PIXEL(tx,ty) qui choisit le bon bloc
    selon ty. Deux blocs de 32768 octets plutôt qu'un seul de
-   65536 : chaque bloc reste sous la barre symbolique des 32 Ko,
-   pratique pour rester dans des tailles de bloc mémoire modestes
-   et faciles à raisonner.
+   65536 : héritage de la version 16 bits (blocs < 64 Ko). En
+   modèle flat 32 bits, un bloc unique de 65536 octets
+   fonctionnerait tout aussi bien.
 
    ANIMATION
    ---------

@@ -1,10 +1,10 @@
 /* =========================================================
    SCENE4.C — Affiche HELLO et WORLD avec font2
    =========================================================
-   Charge la palette font.pal puis affiche :
-     - "HELLO" centre horizontalement a y=84
-     - "WORLD" en (0, 120) pour illustrer le positionnement
-       libre (non centre) de font2DrawText.
+   Charge la palette font.pal puis affiche, centres
+   horizontalement avec font2DrawTextCentered :
+     - "HELLO" a y=45
+     - "WORLD" a y=122
    Duree : 3 secondes
    Aucune gestion clavier (sauf Échap global via INT 09h).
 

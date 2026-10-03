@@ -13,10 +13,13 @@
 
    1. On raisonne en TICKS. Les durées longues s'écrivent en
       ms et sont converties une fois avec MS_TO_TICKS (arrondi
-      au plus proche, jamais 0) ; la cadence s'écrit
-      directement en ticks (FRAME_TICKS).
-   2. sceneStart est posé dans l'init de la scène, jamais
-      ailleurs : c'est la seule référence de temps.
+      au plus proche, minimum 1 tick ; 0 ms reste 0 tick, ce
+      qui supprime la phase) ; la cadence s'écrit directement
+      en ticks (FRAME_TICKS).
+   2. sceneStart est posé une seule fois, au premier appel du
+      point d'entrée, juste avant sceneXInit() : c'est la seule
+      référence de temps de la scène. (setScene() le pose aussi,
+      mais le point d'entrée le repose au premier appel.)
    3. La fonction ne bloque JAMAIS (pas de pause(), pas de
       boucle d'attente) : main appelle audioUpdate() entre
       deux appels.

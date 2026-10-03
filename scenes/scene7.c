@@ -1,5 +1,5 @@
 /* =========================================================
-   SCENE7.C — Scène : tunnel, plasma, morphing et spirales
+   SCENE7.C — Scène : tunnel, spirale, plasma et polygones
    =========================================================
    Mise en oeuvre de TOUTES les fonctions de graphics.h :
      putPixel, getPixel, clearScreen
@@ -9,11 +9,12 @@
 
    Structure en 6 phases de 3 s chacune (18 s au total) :
      Phase 1 — Tunnel en anneaux (drawCircleFill + drawCircle)
-     Phase 2 — Spirale de Galton (drawLine depuis le centre)
-     Phase 3 — Plasma en damier morphant (drawRectFill)
-     Phase 4 — Flocon de Koch simplifié (drawPolygon + lignes)
-     Phase 5 — Rebond de polygones (drawPolygonFill + getPixel
-                pour effet de traînée XOR)
+     Phase 2 — Spirale de lignes (drawLine depuis le centre)
+     Phase 3 — Plasma en damier morphant (drawRectFill + drawRect)
+     Phase 4 — Rosace de polygones (drawPolygonFill + drawPolygon)
+     Phase 5 — Polygones en mouvement (drawPolygonFill) et bande
+                sinusoïdale de couleurs complémentées
+                (getPixel + putPixel)
      Phase 6 — Composition : spirale + tunnel + ornements
 
    Fade in 1 s / fade out 1 s sur la durée totale.
@@ -267,8 +268,8 @@ static void phase3(unsigned long t_ticks)
    Des polygones réguliers de 3 à 8 côtés, disposés en
    couronne autour du centre, tournent en sens alternés.
    Au centre, un polygone plus grand rempli bat comme un
-   cœur. getPixel est utilisé pour éviter d'écraser les
-   contours déjà tracés (dessin sélectif). */
+   cœur. Une seconde couronne, partiellement hors écran,
+   exerce le clipping de drawPolygon. */
 
 static void phase4(unsigned long t_ticks)
 {
@@ -325,12 +326,13 @@ static void phase4(unsigned long t_ticks)
 }
 
 /* =========================================================
-   PHASE 5 — Rebond de polygones + traînée XOR
+   PHASE 5 — Polygones en mouvement + bande complémentée
    =========================================================
-   Trois polygones (triangle, carré, pentagone) rebondissent
-   sur les bords de l'écran.
-   getPixel + putPixel : chaque pixel des contours est relu
-   et sa couleur complémentée (effet de traînée lumineuse). */
+   Trois polygones (triangle, carré, pentagone) suivent des
+   trajectoires sinusoïdales indépendantes en tournant.
+   getPixel + putPixel : le long d'une sinusoïde horizontale,
+   chaque pixel non noir est relu et remplacé par l'index
+   décalé de 127 (couleur « complémentaire » dans la palette). */
 
 static void phase5(unsigned long t_ticks)
 {
@@ -369,7 +371,7 @@ static void phase5(unsigned long t_ticks)
     drawPolygonFill(pts, 5, col);
     drawPolygon(pts, 5, 255);
 
-    /* Effet getPixel / XOR palette sur une bande horizontale
+    /* Effet getPixel / putPixel sur une sinusoïde horizontale
        médiane : complémentation des couleurs présentes. */
     for (x = 0; x < SCREEN_WIDTH; x++)
     {

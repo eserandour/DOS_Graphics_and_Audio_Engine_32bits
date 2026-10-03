@@ -26,12 +26,12 @@
      lineIdx   = posY / char_h           (index de ligne)
      pixInLine = posY % char_h           (pixel dans le glyphe)
      -> blit de la ligne pixInLine de la chaîne lineIdx
-   scrollY avance d'un pixel à la fois (VSCROLL_SPEED_MS).
+   scrollY avance d'un pixel toutes les VSCROLL_TICKS ticks.
    Fin : quand la dernière ligne a entièrement quitté l'écran.
 
    TRANSITION A→B
    --------------
-   Fondu sortant (fade-out) en FADE_MS ms, puis clearScreen
+   Fondu sortant (fade-out) en TRANSITION_MS ms, puis clearScreen
    et démarrage de la partie B.
 
    NOTE C89 (Open Watcom)

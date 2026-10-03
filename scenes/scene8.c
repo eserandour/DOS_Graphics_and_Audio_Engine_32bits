@@ -44,10 +44,14 @@
    Toutes les déclarations en tête de bloc.
 
    TIMER — scène basée sur scene_template.c (voir ce fichier pour
-   les règles) : tout le minutage est en ticks (70 Hz). Écart au
-   gabarit : la fin de scène est aussi déclenchée par scene8Over
-   (une seule ligne ajoutée dans le point d'entrée), car la durée
-   dépend de la musique.
+   les règles) : tout le minutage est en ticks (70 Hz). Deux écarts
+   au gabarit, car la durée dépend de la musique :
+     - la fin de scène est aussi déclenchée par scene8Over (une
+       ligne ajoutée dans le point d'entrée) ;
+     - scene8Init() repose sceneStart après le chargement de
+       musique.s3m, pour que le temps de chargement ne soit pas
+       décompté et que la durée d'une lecture parte du démarrage
+       réel de la musique.
    ========================================================= */
 
 
@@ -202,8 +206,8 @@ static void scene8Init(void)
     (void)hasMusicLooped();
 
     /* La musique vient de démarrer à plein volume "normal" (Gv/Mv
-       du fichier, voir stopMusic()/playMusic() dans s3m.c qui
-       remettent le fondu à 127/127 au chargement) : pour vraiment
+       du fichier : s3mLoad(), appelée par playMusic() dans audio.c,
+       remet le fondu à 127/127 au chargement) : pour vraiment
        démarrer de RIEN, on la coupe instantanément (durée 0 =
        application immédiate, voir s3mFadeTo) avant de lancer la
        vraie montée progressive juste après. Sans effet si le
