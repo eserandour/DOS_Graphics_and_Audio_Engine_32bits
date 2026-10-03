@@ -247,10 +247,6 @@ Toutes les scènes suivent la même structure, celle de `scenes/scene_template.c
 
 GNU GPL v3 — voir [`LICENSE`](LICENSE).
 
-## Remerciements
-
-`audios/musique.s3m` (*Starshine*) est emprunté à **Purple Motion** (Jonne Valtonen) de **Future Crew** — voir `audios/readme.txt`.
-
 ## Version 16 bits
 
 Pour ceux qui souhaitent retrouver le modèle mémoire DOS classique, une **version 16 bits** du moteur est également disponible.
