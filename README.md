@@ -80,13 +80,16 @@ DOS_Graphics_and_Audio_Engine_32bits/
 ├── audios/               Musique de démo (musique.s3m)
 ├── CAPTURES/             Captures d'écran de la démo
 │
-├── OUTILS/               Scripts Python de conversion et d'extraction d'assets
-│   └── s3m_extract.py    Extraction des samples d'un .s3m en .wav
+├── OUTILS/               Scripts Python de conversion d'assets
 │
-├── BUILD.BAT             Compilation (wcc386 + wlink)
+├── BUILD.BAT             Compilation (wcc386 + wlink), génère les 3 fichiers ci-dessous
 ├── CLEAN.BAT / CLEANALL.BAT  Nettoyage des fichiers générés
-├── LINK.RSP              Script d'édition de liens (DOS/32A)
 └── LICENSE               GNU GPL v3
+
+Fichiers générés par BUILD.BAT (ne pas modifier à la main) :
+├── LINK.RSP              Script d'édition de liens (DOS/32A)
+├── SCENEDCL.H            Prototypes des scènes présentes (inclus par scene.c)
+└── SCENETAB.H            Entrées du tableau des scènes (inclus par scene.c)
 ```
 
 ## Modules
