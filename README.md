@@ -242,7 +242,7 @@ Toutes les scènes suivent la même structure, celle de `scenes/scene_template.c
   ```
 
   Sont ignorés les instruments AdLib et les samples compressés ; les points de boucle sont affichés mais pas écrits dans les WAV. Utile pour réutiliser les sons d'un module comme effets (`wav.c`) ou pour les retravailler dans un tracker.
-- **`s3m_audit.py`** — vérifie les effets de `s3m.c` en les comparant à **libopenmpt** (via `ffmpeg`), tick par tick : une dizaine de familles d'effets (portamentos, vibrato, arpège, volume, tremor, retrigger, commandes S, mémoire d'effet, en-tête...) sur de petits modules de test. Prérequis : `gcc` et `ffmpeg` compilé avec libopenmpt ; usage `python s3m_audit.py s3m.c`.
+- **`s3m_audit.py`** — vérifie les effets de `s3m.c` en les comparant à **libopenmpt** (via `ffmpeg`), tick par tick : une dizaine de familles d'effets (portamentos, vibrato, arpège, volume, tremor, retrigger, commandes S, mémoire d'effet, en-tête...) sur de petits modules de test. Prérequis : `gcc` et `ffmpeg` compilé avec libopenmpt ; usage `python3 s3m_audit.py` depuis `OUTILS/` (le script trouve `../s3m.c` tout seul ; un autre chemin peut être passé en argument).
 - **`DUMPPAL.C`** — programme DOS qui passe en mode 13h, lit la palette par défaut du DAC VGA et l'écrit dans `DEFAULT.PAL` (origine de `images/default.pal`).
 - **`fonts/ascii_cp850.py`** — génère `ascii_cp850.txt`, table des 256 codes CP850 avec leurs glyphes.
 
