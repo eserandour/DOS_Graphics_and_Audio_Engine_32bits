@@ -11,11 +11,18 @@ et le VOLUME. Un effet est "OK" si au plus 3 ticks s'écartent au-delà de la
 tolérance (les transitions de ligne ne sont pas alignées au dixième de tick près).
 
 Prérequis : python3, gcc, ffmpeg compilé avec libopenmpt.
-Usage     : python3 s3m_audit.py [chemin/vers/s3m.c]        (défaut : ./s3m.c)
+Usage     : python3 s3m_audit.py [chemin/vers/s3m.c]
+            (défaut : ../s3m.c, relatif à ce script ; se lance donc
+            tel quel depuis OUTILS/ ou depuis n'importe quel dossier)
 """
 import math, os, struct, subprocess, sys, tempfile, wave
 
-SRC = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else 's3m.c')
+HERE = os.path.dirname(os.path.abspath(__file__))
+SRC = os.path.abspath(sys.argv[1] if len(sys.argv) > 1
+                      else os.path.join(HERE, '..', 's3m.c'))
+if not os.path.isfile(SRC) or not os.path.isfile(os.path.join(os.path.dirname(SRC), 's3m.h')):
+    sys.exit("s3m_audit : s3m.c / s3m.h introuvables dans " + os.path.dirname(SRC)
+             + "\nUsage : python3 s3m_audit.py [chemin/vers/s3m.c]")
 INC = os.path.dirname(SRC)
 TMP = tempfile.mkdtemp(prefix='s3m_audit_')
 RATE = 11025
