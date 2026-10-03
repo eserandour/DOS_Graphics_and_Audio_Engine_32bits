@@ -6,9 +6,14 @@ Moteur graphique et audio pour **DOS**, écrit en C ANSI avec **Open Watcom 1.9*
 
 Accès direct au matériel PC (VRAM, PIT, clavier, DMA/DSP), sans dépendance à une bibliothèque graphique ou audio tierce. Une playlist de 9 scènes de démonstration (`scenes/`) illustre l'ensemble des modules : palette, polices bitmap, primitives 2D, rotozoom, musique tracker S3M... Un gabarit (`scenes/scene_template.c`) donne la structure à suivre pour écrire ses propres scènes en gérant correctement le timer.
 
-[![Police bitmap 16x16](CAPTURES/demo_009.png)](CAPTURES/demo_009.png) [![Écran d'intro](CAPTURES/demo_007.png)](CAPTURES/demo_007.png)
-
-[![Tunnel de cercles concentriques](CAPTURES/demo_012.png)](CAPTURES/demo_012.png) [![Polygones remplis en rebond](CAPTURES/demo_015.png)](CAPTURES/demo_015.png)
+<p align="center">
+  <img src="CAPTURES/demo_009.png" width="45%" alt="Police bitmap 16x16">
+  <img src="CAPTURES/demo_007.png" width="45%" alt="Écran d'intro">
+</p>
+<p align="center">
+  <img src="CAPTURES/demo_012.png" width="45%" alt="Tunnel de cercles concentriques">
+  <img src="CAPTURES/demo_015.png" width="45%" alt="Polygones remplis en rebond">
+</p>
 
 ---
 
