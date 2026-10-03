@@ -40,8 +40,7 @@ void shutdown(void)
    ========================================================= */
 
 static const Scene playlist[] = {
-    SCENE_0,  /* 1 seconde d'écran noir (pour la capture vidéo) */
-    SCENE_8,  /* démonstration moteur audio                     */
+    SCENE_0,  /* 3 secondes d'écran noir (pour la capture vidéo) */
     SCENE_1,  /* pixels aléatoires (LCG)                        */
     SCENE_2,  /* démonstration palette VGA                      */
     SCENE_3,  /* démonstration des polices font1                */
@@ -49,7 +48,8 @@ static const Scene playlist[] = {
     SCENE_5,  /* scrolling de texte                             */
     SCENE_6,  /* rotozoom freedos                               */
     SCENE_7,  /* démonstration primitives graphics              */
-    SCENE_0,  /* 1 seconde d'écran noir (pour la capture vidéo) */
+    SCENE_8,  /* démonstration moteur audio                     */
+    SCENE_0,  /* 3 secondes d'écran noir (pour la capture vidéo) */
 };
 #define PLAYLIST_LEN (sizeof(playlist) / sizeof(playlist[0]))
 
