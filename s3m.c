@@ -106,6 +106,50 @@ typedef struct {
     /* --- Offset d'échantillon, Oxx --- */
     unsigned char offsetMem;     /* dernier paramètre Oxx non nul (unité :
                                      256 échantillons) */
+
+    /* --- Fréquence propre à la voie --- */
+    unsigned long c2spd;         /* c2spd effectif : celui de l'échantillon
+                                     au déclenchement de la note, éventuel-
+                                     lement remplacé par S2x (finetune) */
+
+    /* --- Vibrato fin Uxy, formes d'onde S3x --- */
+    unsigned char vibFine;       /* 1 si le vibrato actif est Uxy (profondeur
+                                     divisée par 4), 0 si Hxy/Kxy */
+    unsigned char vibWave;       /* 0 sinus, 1 rampe, 2 carré, 3 aléatoire */
+    unsigned char vibNoRetrig;   /* 1 : la phase n'est pas remise à zéro à
+                                     chaque nouvelle note (S3x avec x >= 4) */
+
+    /* --- Tremolo, Rxy --- */
+    unsigned char tremSpeedMem;  /* dernier x (vitesse) non nul */
+    unsigned char tremDepthMem;  /* dernier y (profondeur) non nul */
+    unsigned char tremoloPos;    /* position dans la table sinus (0-31) */
+    unsigned char tremWave;      /* même codage que vibWave (S4x) */
+    unsigned char tremNoRetrig;  /* idem vibNoRetrig (S4x avec x >= 4) */
+    int           tremoloActive; /* 1 si Rxy présent sur cette ligne */
+
+    /* --- Tremor, Ixy --- */
+    unsigned char tremorMem;     /* dernier paramètre Ixy non nul */
+    unsigned char tremorOn;      /* x : nombre de ticks "son" */
+    unsigned char tremorOff;     /* y : nombre de ticks "silence" */
+    unsigned char tremorPos;     /* position dans le cycle on+off (persiste
+                                     d'une ligne à l'autre) */
+    int           tremorActive;  /* 1 si Ixy présent sur cette ligne */
+
+    /* --- Retrigger, Qxy --- */
+    unsigned char retrigMem;     /* dernier paramètre Qxy non nul */
+    unsigned char retrigVol;     /* x : variation de volume à chaque reprise */
+    unsigned char retrigInterval;/* y : intervalle en ticks (0 = inactif) */
+    int           retrigActive;  /* 1 si Qxy présent sur cette ligne */
+
+    /* --- Effets spéciaux Sxy --- */
+    unsigned char sMem;          /* dernier paramètre Sxy non nul (S00 le
+                                     réutilise) */
+    int           glissando;     /* S1x : 1 = tone portamento par demi-tons */
+    int           cutAt;         /* SCx : tick de coupure, -1 = aucune */
+    int           delayActive;   /* SDx : une note est en attente */
+    unsigned char delayTick;     /* tick auquel la note en attente part */
+    unsigned char delayNote, delayInstr, delayVol;
+    int           delayHasNote, delayHasVol;
 } S3mChannel;
 
 /* ---------------------------------------------------------
@@ -150,6 +194,25 @@ static const signed char vibratoSineTable[32] = {
       0, -25, -49, -71, -90,-106,-117,-125,
    -127,-125,-117,-106, -90, -71, -49, -25
 };
+
+/* Valeur (-127..127) de la forme d'onde 'wave' à la position 'pos'
+   (0-31) : 0 sinus (table ci-dessus), 1 rampe descendante, 2 carré,
+   3 aléatoire. Partagée par le vibrato (S3x) et le tremolo (S4x). */
+static unsigned long waveRng = 12345UL;
+
+static int waveValue(unsigned char wave, unsigned char pos)
+{
+    pos &= 0x1F;
+    switch (wave)
+    {
+    case 1:  return 127 - (int)pos * 8;
+    case 2:  return (pos < 16) ? 127 : -127;
+    case 3:
+        waveRng = waveRng * 1664525UL + 1013904223UL;
+        return (int)((waveRng >> 24) & 0xFFUL) - 128;
+    default: return vibratoSineTable[pos];
+    }
+}
 
 static int numOrders       = 0;
 static int numInstruments  = 0;
@@ -196,6 +259,14 @@ static unsigned long fadeDurationSamples  = 0;   /* 0 = pas de fondu en cours */
 
 static int          posJumpPending, patBreakPending;
 static unsigned int  posJumpTarget, patBreakRow;
+
+/* Boucle de motif SBx et retard de ligne SEx (état global, comme
+   dans Scream Tracker 3). */
+static unsigned int loopStartRow    = 0;   /* SB0 : ligne de départ */
+static unsigned int loopCount       = 0;   /* répétitions restantes */
+static int          loopJumpPending = 0;   /* SBx : retour en arrière à faire
+                                              à la fin de cette ligne */
+static unsigned int rowDelayCount   = 0;   /* SEx : répétitions de la ligne */
 
 static unsigned long mixRate = 11025UL;
 
@@ -507,6 +578,41 @@ static void resetChannel(S3mChannel *ch)
     ch->arpActive = 0;
 
     ch->offsetMem = 0;
+
+    ch->c2spd = 8363UL;
+
+    ch->vibFine     = 0;
+    ch->vibWave     = 0;
+    ch->vibNoRetrig = 0;
+
+    ch->tremSpeedMem  = 0;
+    ch->tremDepthMem  = 0;
+    ch->tremoloPos    = 0;
+    ch->tremWave      = 0;
+    ch->tremNoRetrig  = 0;
+    ch->tremoloActive = 0;
+
+    ch->tremorMem    = 0;
+    ch->tremorOn     = 0;
+    ch->tremorOff    = 0;
+    ch->tremorPos    = 0;
+    ch->tremorActive = 0;
+
+    ch->retrigMem      = 0;
+    ch->retrigVol      = 0;
+    ch->retrigInterval = 0;
+    ch->retrigActive   = 0;
+
+    ch->sMem        = 0;
+    ch->glissando   = 0;
+    ch->cutAt       = -1;
+    ch->delayActive = 0;
+    ch->delayTick   = 0;
+    ch->delayNote   = 0;
+    ch->delayInstr  = 0;
+    ch->delayVol    = 0;
+    ch->delayHasNote = 0;
+    ch->delayHasVol  = 0;
 }
 
 /* ---------------------------------------------------------
@@ -708,6 +814,10 @@ int s3mLoad(const char *filename)
     globalVolume      = (gv > 64) ? 64 : gv;
     posJumpPending    = 0;
     patBreakPending   = 0;
+    loopStartRow      = 0;
+    loopCount         = 0;
+    loopJumpPending   = 0;
+    rowDelayCount     = 0;
 
     for (i = 0; i < S3M_MAX_CHANNELS; i++)
         resetChannel(&channels[i]);
@@ -757,6 +867,34 @@ static unsigned int computePeriodFromOffset(unsigned int baseSemitone,
 {
     unsigned int total = baseSemitone + semitoneOffset;
     return computePeriod(total % 12, baseOctave + total / 12);
+}
+
+/* S2x : table de finetune de Scream Tracker 3 (x = 0-15 -> c2spd).
+   x = 8 correspond au c2spd standard 8363 Hz. */
+static const unsigned int s3mFinetuneTable[16] = {
+    7895, 7941, 7985, 8046, 8107, 8169, 8232, 8280,
+    8363, 8413, 8463, 8529, 8581, 8651, 8723, 8757
+};
+
+/* S1x (glissando) : ramène une période quelconque sur la période du
+   demi-ton le plus proche (toutes octaves confondues). */
+static unsigned int snapToSemitone(unsigned int p)
+{
+    unsigned int o, n, cand, d, bestD, best;
+
+    best  = p;
+    bestD = 0xFFFFU;
+    for (o = 0; o <= 15; o++)
+    {
+        for (n = 0; n < 12; n++)
+        {
+            cand = s3mPeriodTable[n] >> o;
+            if (cand == 0) continue;
+            d = (cand > p) ? (cand - p) : (p - cand);
+            if (d < bestD) { bestD = d; best = cand; }
+        }
+    }
+    return best;
 }
 
 static unsigned long stepFromPeriod(unsigned int period, unsigned long c2spd)
@@ -812,6 +950,36 @@ static void applyCommand(unsigned char cmd, unsigned char info)
     case 22:                             /* V : volume global */
         globalVolume = (info > 64) ? 64 : info;
         break;
+    case 19:                             /* S : effets spéciaux globaux
+                                             (les S par voie sont traités
+                                             dans applyCell) */
+        switch (info >> 4)
+        {
+        case 0xB:                        /* SBx : boucle de motif */
+            if ((info & 0x0F) == 0)
+            {
+                loopStartRow = currentRow;       /* SB0 : marque le départ */
+            }
+            else if (loopCount == 0)
+            {
+                loopCount       = info & 0x0F;   /* 1re rencontre */
+                loopJumpPending = 1;
+            }
+            else
+            {
+                loopCount--;
+                if (loopCount > 0) loopJumpPending = 1;
+            }
+            break;
+        case 0xE:                        /* SEx : retard de ligne (la ligne
+                                             est rejouée x fois de plus,
+                                             sans redéclencher les notes) */
+            if (rowDelayCount == 0) rowDelayCount = info & 0x0F;
+            break;
+        default:
+            break;
+        }
+        break;
     default:
         break;   /* effet non supporté : ignoré (voir s3m.h) */
     }
@@ -821,19 +989,21 @@ static void applyCommand(unsigned char cmd, unsigned char info)
    Application d'une cellule (une voie, une ligne)
    --------------------------------------------------------- */
 
-static void applyCell(unsigned int channel,
-                       int hasNote, unsigned char note, unsigned char instr,
-                       int hasVol,  unsigned char vol,
-                       int hasCmd,  unsigned char cmd, unsigned char info)
+/* ---------------------------------------------------------
+   Note / instrument / colonne de volume d'une cellule. Séparé de
+   applyCell() pour pouvoir être appelé plus tard par SDx (note
+   retardée) : dans ce cas hasCmd vaut 0, la cellule ne porte plus
+   que la note, l'instrument et le volume.
+   --------------------------------------------------------- */
+static void applyNoteCell(S3mChannel *ch,
+                          int hasNote, unsigned char note, unsigned char instr,
+                          int hasVol,  unsigned char vol,
+                          int hasCmd,  unsigned char cmd, unsigned char info)
 {
-    S3mChannel *ch;
+    /* Tone portamento : Gxx, ou Lxy (Gxx + glissement de volume). */
+    int toneP;
 
-    if (hasCmd) applyCommand(cmd, info);
-
-    if (channel >= (unsigned int)numChannelsToMix) return;
-    if (!chEnabled[channel]) return;
-
-    ch = &channels[channel];
+    toneP = (hasCmd && (cmd == 7 || cmd == 12)) ? 1 : 0;
 
     if (hasNote)
     {
@@ -857,7 +1027,7 @@ static void applyCell(unsigned int channel,
             ch->baseOctave   = (unsigned char)octave;
             targetPeriod     = computePeriod(semitone, octave);
 
-            if (hasCmd && cmd == 7 && ch->playing && ch->samplePtr)
+            if (toneP && ch->playing && ch->samplePtr)
             {
                 /* Gxx (tone portamento) sur une voie déjà active :
                    la note indique la cible à atteindre par
@@ -879,16 +1049,19 @@ static void applyCell(unsigned int channel,
                     && targetPeriod != 0)
                 {
                     ch->period = targetPeriod;
-                    ch->step   = stepFromPeriod(targetPeriod, samples[sIdx].c2spd);
+                    ch->c2spd  = samples[sIdx].c2spd;
+                    ch->step   = stepFromPeriod(targetPeriod, ch->c2spd);
                     if (ch->step != 0)
                     {
                         ch->pos        = 0;
                         ch->playing    = 1;
                         ch->volume     = samples[sIdx].defVolume;
-                        ch->vibratoPos = 0;   /* phase du vibrato repartie à
+                        if (!ch->vibNoRetrig) ch->vibratoPos = 0;   /* phase du vibrato repartie à
                                                   zéro à chaque nouvelle
                                                   attaque, comme dans la
-                                                  plupart des trackers */
+                                                  plupart des trackers (sauf S3x avec x >= 4) */
+                        if (!ch->tremNoRetrig) ch->tremoloPos = 0;
+                        ch->tremorPos = 0;
                         /* Pointeur mis en cache ici, au déclenchement de la
                            note : mixChunk() n'a alors plus besoin d'indexer
                            samples[] par sampleIdx à chaque échantillon
@@ -918,7 +1091,7 @@ static void applyCell(unsigned int channel,
                            pas déjà active (première note du morceau sur
                            cette voie, par exemple) : rien à glisser, la
                            cible est directement la période de départ. */
-                        if (hasCmd && cmd == 7) ch->glideTarget = targetPeriod;
+                        if (toneP) ch->glideTarget = targetPeriod;
                     }
                 }
             }
@@ -933,13 +1106,54 @@ static void applyCell(unsigned int channel,
 
     if (hasVol && vol <= 64)
         ch->volume = vol;
+}
+
+static void applyCell(unsigned int channel,
+                       int hasNote, unsigned char note, unsigned char instr,
+                       int hasVol,  unsigned char vol,
+                       int hasCmd,  unsigned char cmd, unsigned char info)
+{
+    S3mChannel *ch;
+
+    /* S00 réutilise le dernier paramètre Sxy de la voie (mémoire). */
+    if (hasCmd && cmd == 19 &&
+        channel < (unsigned int)numChannelsToMix && chEnabled[channel])
+    {
+        if (info != 0) channels[channel].sMem = info;
+        else           info = channels[channel].sMem;
+    }
+
+    if (hasCmd) applyCommand(cmd, info);
+
+    if (channel >= (unsigned int)numChannelsToMix) return;
+    if (!chEnabled[channel]) return;
+
+    ch = &channels[channel];
+
+    /* SDx (x > 0) : la note/instrument/volume de cette cellule n'est pas
+       appliquée maintenant mais au tick x de la ligne (voir doTick). */
+    if (hasCmd && cmd == 19 && ((info >> 4) & 0x0F) == 0x0D && (info & 0x0F) != 0
+        && (hasNote || instr != 0 || hasVol))
+    {
+        ch->delayActive  = 1;
+        ch->delayTick    = (unsigned char)(info & 0x0F);
+        ch->delayHasNote = hasNote;
+        ch->delayNote    = note;
+        ch->delayInstr   = instr;
+        ch->delayHasVol  = hasVol;
+        ch->delayVol     = vol;
+    }
+    else
+    {
+        applyNoteCell(ch, hasNote, note, instr, hasVol, vol, hasCmd, cmd, info);
+    }
 
     /* 4 = 'D', glissement de volume. Mémoire d'effet standard S3M :
        un paramètre nul (D00) réutilise le dernier paramètre Dxx non
        nul réglé sur cette voie, au lieu d'annuler le glissement — un
        D00 isolé n'a de sens dans un vrai module que pour "continuer"
        un glissement déjà en cours sans le retaper à chaque ligne. */
-    if (hasCmd && cmd == 4)
+    if (hasCmd && (cmd == 4 || cmd == 11 || cmd == 12))   /* D, K, L */
     {
         if (info != 0) ch->volSlideMem = info;
         ch->volSlide = ch->volSlideMem;
@@ -1008,6 +1222,13 @@ static void applyCell(unsigned int channel,
         ch->glideStep   = (unsigned int)ch->glideMem * 4U;
         ch->glideActive = 1;
     }
+    else if (hasCmd && cmd == 12)
+    {
+        /* L = Gxx (avec la mémoire de vitesse) + glissement de volume Dxy
+           (traité plus haut). Le paramètre de L est celui du volume. */
+        ch->glideStep   = (unsigned int)ch->glideMem * 4U;
+        ch->glideActive = 1;
+    }
     else
     {
         ch->glideActive = 0;
@@ -1020,12 +1241,19 @@ static void applyCell(unsigned int channel,
        répété à chaque ligne pour que le vibrato continue (cohérent
        avec Dxx/Exx/Fxx dans ce moteur), mais si on le réactive plus
        tard, il reprend là où il en était plutôt que de sauter à zéro. */
-    if (hasCmd && cmd == 8)
+    if (hasCmd && (cmd == 8 || cmd == 21))   /* H, U */
     {
         unsigned char x = (unsigned char)((info >> 4) & 0x0F);
         unsigned char y = (unsigned char)(info & 0x0F);
         if (x != 0) ch->vibSpeedMem = x;
         if (y != 0) ch->vibDepthMem = y;
+        ch->vibratoActive = 1;
+        ch->vibFine       = (cmd == 21) ? 1 : 0;   /* U : profondeur / 4 */
+    }
+    else if (hasCmd && cmd == 11)
+    {
+        /* K = vibrato (mémoire de Hxy/Uxy, mode fin ou non inchangé)
+           + glissement de volume Dxy (traité plus haut). */
         ch->vibratoActive = 1;
     }
     else
@@ -1049,6 +1277,87 @@ static void applyCell(unsigned int channel,
     else
     {
         ch->arpActive = 0;
+    }
+
+    /* 18 = 'R', tremolo : comme le vibrato (Hxy) mais sur le volume.
+       x = vitesse, y = profondeur, mémoire par paramètre non nul. Le
+       volume de la voie n'est pas modifié durablement : l'oscillation
+       n'agit que sur le volume mixé (voir doTick). */
+    if (hasCmd && cmd == 18)
+    {
+        unsigned char x = (unsigned char)((info >> 4) & 0x0F);
+        unsigned char y = (unsigned char)(info & 0x0F);
+        if (x != 0) ch->tremSpeedMem = x;
+        if (y != 0) ch->tremDepthMem = y;
+        ch->tremoloActive = 1;
+    }
+    else
+    {
+        ch->tremoloActive = 0;
+    }
+
+    /* 9 = 'I', tremor : x ticks de son, y ticks de silence, en cycle.
+       Mémoire d'effet (I00 réutilise le dernier paramètre). Le cycle
+       continue d'une ligne à l'autre tant que l'effet est répété. */
+    if (hasCmd && cmd == 9)
+    {
+        if (info != 0) ch->tremorMem = info;
+        ch->tremorOn     = (unsigned char)((ch->tremorMem >> 4) & 0x0F);
+        ch->tremorOff    = (unsigned char)(ch->tremorMem & 0x0F);
+        ch->tremorActive = 1;
+    }
+    else
+    {
+        ch->tremorActive = 0;
+    }
+
+    /* 17 = 'Q', retrigger : toutes les y ticks (à partir du tick y), la
+       note repart du début avec une variation de volume x (voir
+       retriggerChannel). Mémoire d'effet. y = 0 : aucune reprise. */
+    if (hasCmd && cmd == 17)
+    {
+        if (info != 0) ch->retrigMem = info;
+        ch->retrigVol      = (unsigned char)((ch->retrigMem >> 4) & 0x0F);
+        ch->retrigInterval = (unsigned char)(ch->retrigMem & 0x0F);
+        ch->retrigActive   = 1;
+    }
+    else
+    {
+        ch->retrigActive = 0;
+    }
+
+    /* 19 = 'S', effets spéciaux par voie. SBx/SEx (globaux) ont déjà été
+       traités par applyCommand ; SDx (note retardée) plus haut. Ignorés
+       faute de sens sur ce moteur mono sans filtre : S0x (filtre), S8x
+       et SAx (panoramique), SFx (funk repeat). */
+    if (hasCmd && cmd == 19)
+    {
+        unsigned char sub = (unsigned char)((info >> 4) & 0x0F);
+        unsigned char x   = (unsigned char)(info & 0x0F);
+
+        switch (sub)
+        {
+        case 0x1:                              /* S1x : glissando */
+            ch->glissando = (x != 0) ? 1 : 0;
+            break;
+        case 0x2:                              /* S2x : finetune */
+            ch->c2spd = (unsigned long)s3mFinetuneTable[x];
+            break;
+        case 0x3:                              /* S3x : forme d'onde du vibrato */
+            ch->vibWave     = (unsigned char)(x & 3);
+            ch->vibNoRetrig = (unsigned char)((x & 4) ? 1 : 0);
+            break;
+        case 0x4:                              /* S4x : forme d'onde du tremolo */
+            ch->tremWave     = (unsigned char)(x & 3);
+            ch->tremNoRetrig = (unsigned char)((x & 4) ? 1 : 0);
+            break;
+        case 0xC:                              /* SCx : coupure de note au tick x */
+            ch->cutAt = (int)x;
+            if (x == 0) ch->volume = 0;        /* SC0 : coupure immédiate */
+            break;
+        default:
+            break;
+        }
     }
 }
 
@@ -1112,17 +1421,26 @@ static void advanceRow(void)
     nextOrder = currentOrder;
     nextRow   = currentRow + 1;
 
-    if (patBreakPending) nextRow = patBreakRow;
-
-    if (posJumpPending)
+    if (loopJumpPending)
     {
-        nextOrder = posJumpTarget;
-        if (!patBreakPending) nextRow = 0;
+        /* SBx : retour à la ligne marquée par SB0, dans le même motif
+           (prioritaire sur Bxx/Cxx posés sur la même ligne). */
+        nextRow = loopStartRow;
     }
-    else if (nextRow >= 64)
+    else
     {
-        nextOrder = currentOrder + 1;
-        nextRow   = 0;
+        if (patBreakPending) nextRow = patBreakRow;
+
+        if (posJumpPending)
+        {
+            nextOrder = posJumpTarget;
+            if (!patBreakPending) nextRow = 0;
+        }
+        else if (nextRow >= 64)
+        {
+            nextOrder = currentOrder + 1;
+            nextRow   = 0;
+        }
     }
 
     while (nextOrder < (unsigned int)numOrders && orders[nextOrder] == 0xFE)
@@ -1143,6 +1461,14 @@ static void advanceRow(void)
     {
         s3mPlaying = 0;      /* aucun motif jouable : silence plutôt que planter */
         return;
+    }
+
+    /* Nouveau motif (ou bouclage du morceau) : la boucle SBx repart de
+       zéro, comme une nouvelle ligne 0. */
+    if (nextOrder != currentOrder || (nextRow == 0 && !loopJumpPending))
+    {
+        loopStartRow = 0;
+        loopCount    = 0;
     }
 
     currentOrder   = nextOrder;
@@ -1235,6 +1561,11 @@ static void recomputePitch(void)
 
         effPeriod = ch->period;
 
+        /* S1x : pendant un tone portamento, la hauteur entendue est ramenée
+           au demi-ton le plus proche (la période "réelle" reste continue). */
+        if (ch->glissando && ch->glideActive)
+            effPeriod = snapToSemitone(effPeriod);
+
         if (ch->arpActive)
         {
             unsigned int off = tickInRow % 3;
@@ -1247,11 +1578,11 @@ static void recomputePitch(void)
 
         if (ch->vibratoActive)
         {
-            int sineVal = vibratoSineTable[ch->vibratoPos & 0x1F];
+            int sineVal = waveValue(ch->vibWave, ch->vibratoPos);
             /* Mise à l'échelle empirique (profondeur 0-15) : donne un
                vibrato clairement audible sans excès aux profondeurs
                courantes (1-8), voir s3m.h. */
-            int delta = (sineVal * (int)ch->vibDepthMem) / 32;
+            int delta = (sineVal * (int)ch->vibDepthMem) / (ch->vibFine ? 128 : 32);
             long p = (long)effPeriod + delta;
             if (p < 1) p = 1;
             effPeriod = (unsigned int)p;
@@ -1259,8 +1590,73 @@ static void recomputePitch(void)
             ch->vibratoPos = (unsigned char)((ch->vibratoPos + ch->vibSpeedMem) & 0x1F);
         }
 
-        ch->step = stepFromPeriod(effPeriod, ch->samplePtr->c2spd);
+        ch->step = stepFromPeriod(effPeriod, ch->c2spd);
     }
+}
+
+/* ---------------------------------------------------------
+   Remise à zéro des effets "de ligne" de toutes les voies, juste avant
+   la lecture d'une nouvelle ligne. Un effet (D, E/F, G, H, J, I, Q, R,
+   SC...) ne vaut que pour la ligne où il est écrit : une voie sans
+   cellule sur cette ligne ne doit pas le poursuivre. Les mémoires
+   (volSlideMem, portaMem, vibSpeedMem...) sont conservées.
+   --------------------------------------------------------- */
+static void clearRowEffects(void)
+{
+    unsigned int i;
+
+    for (i = 0; i < (unsigned int)numChannelsToMix; i++)
+    {
+        S3mChannel *ch = &channels[i];
+
+        ch->volSlide      = 0;
+        ch->portaCmd      = 0;
+        ch->portaFineCmd  = 0;
+        ch->glideActive   = 0;
+        ch->vibratoActive = 0;
+        ch->arpActive     = 0;
+        ch->tremoloActive = 0;
+        ch->tremorActive  = 0;
+        ch->retrigActive  = 0;
+        ch->cutAt         = -1;
+        ch->delayActive   = 0;
+    }
+}
+
+/* ---------------------------------------------------------
+   Reprise de note (Qxy) : variation de volume x puis relecture de
+   l'échantillon depuis le début. Table x : 0 et 8 = aucun
+   changement ; 1-5 = -1,-2,-4,-8,-16 ; 6 = x2/3 ; 7 = /2 ;
+   9-D = +1,+2,+4,+8,+16 ; E = x3/2 ; F = x2.
+   --------------------------------------------------------- */
+static void retriggerChannel(S3mChannel *ch)
+{
+    int v = (int)ch->volume;
+
+    switch (ch->retrigVol)
+    {
+    case 0x1: v -= 1;  break;
+    case 0x2: v -= 2;  break;
+    case 0x3: v -= 4;  break;
+    case 0x4: v -= 8;  break;
+    case 0x5: v -= 16; break;
+    case 0x6: v = (v * 2) / 3; break;
+    case 0x7: v = v / 2; break;
+    case 0x9: v += 1;  break;
+    case 0xA: v += 2;  break;
+    case 0xB: v += 4;  break;
+    case 0xC: v += 8;  break;
+    case 0xD: v += 16; break;
+    case 0xE: v = (v * 3) / 2; break;
+    case 0xF: v = v * 2; break;
+    default:  break;
+    }
+    if (v < 0)  v = 0;
+    if (v > 64) v = 64;
+    ch->volume = (unsigned char)v;
+
+    ch->pos     = 0;
+    ch->playing = 1;
 }
 
 /* ---------------------------------------------------------
@@ -1276,8 +1672,11 @@ static void doTick(void)
     {
         posJumpPending  = 0;
         patBreakPending = 0;
+        loopJumpPending = 0;
+        rowDelayCount   = 0;
         tickInRow       = 0;
 
+        clearRowEffects();
         parseRow(&patterns[currentPattern], currentRow);
         if (!s3mPlaying) return;
 
@@ -1289,11 +1688,36 @@ static void doTick(void)
         applyFinePortamento();
 
         advanceRow();
-        tickCounter = speed;
+
+        /* SEx : la ligne dure (1 + x) fois plus longtemps (ticks
+           supplémentaires sans redéclenchement des notes). */
+        tickCounter = speed * (1U + rowDelayCount);
     }
     else
     {
         tickInRow++;
+
+        /* Effets "à un tick donné" : note retardée (SDx), coupure (SCx),
+           reprise de note (Qxy). */
+        for (i = 0; i < (unsigned int)numChannelsToMix; i++)
+        {
+            S3mChannel *ch = &channels[i];
+
+            if (ch->delayActive && (unsigned int)ch->delayTick == tickInRow)
+            {
+                ch->delayActive = 0;
+                applyNoteCell(ch, ch->delayHasNote, ch->delayNote,
+                              ch->delayInstr, ch->delayHasVol, ch->delayVol,
+                              0, 0, 0);
+            }
+
+            if (ch->cutAt >= 0 && (unsigned int)ch->cutAt == tickInRow)
+                ch->volume = 0;
+
+            if (ch->retrigActive && ch->retrigInterval != 0 && ch->samplePtr &&
+                (tickInRow % (unsigned int)ch->retrigInterval) == 0)
+                retriggerChannel(ch);
+        }
 
         for (i = 0; i < (unsigned int)numChannelsToMix; i++)
         {
@@ -1395,9 +1819,37 @@ static void doTick(void)
         unsigned int v;
         int mv;
         int combinedMv;
+        int effVol;
+
+        /* Volume effectif de la voie : volume de base + oscillations
+           transitoires (tremolo Rxy, tremor Ixy), qui ne modifient pas
+           ch->volume lui-même. */
+        effVol = (int)channels[i].volume;
+
+        if (channels[i].tremoloActive)
+        {
+            int w = waveValue(channels[i].tremWave, channels[i].tremoloPos);
+            effVol += (w * (int)channels[i].tremDepthMem) / 32;
+            if (effVol < 0)  effVol = 0;
+            if (effVol > 64) effVol = 64;
+            channels[i].tremoloPos = (unsigned char)
+                ((channels[i].tremoloPos + channels[i].tremSpeedMem) & 0x1F);
+        }
+
+        if (channels[i].tremorActive)
+        {
+            unsigned int cyc = (unsigned int)channels[i].tremorOn +
+                               (unsigned int)channels[i].tremorOff;
+            if (cyc != 0)
+            {
+                if (channels[i].tremorPos >= channels[i].tremorOn) effVol = 0;
+                channels[i].tremorPos++;
+                if (channels[i].tremorPos >= cyc) channels[i].tremorPos = 0;
+            }
+        }
 
         channels[i].mixVol =
-            (unsigned char)(((unsigned int)channels[i].volume * globalVolume) >> 6);
+            (unsigned char)(((unsigned int)effVol * globalVolume) >> 6);
 
         /* mv (0-64) atténué par masterVolume et fadeLevel (0-127
            chacun), ramené à la MÊME échelle 0-64 que mv d'origine :

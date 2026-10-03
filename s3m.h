@@ -36,9 +36,36 @@
          Oxx offset — démarre la lecture à l'échantillon
              xx*256 au lieu de 0 (uniquement combiné à une
              note qui déclenche réellement le sample).
-     - Toutes les autres commandes (tremolo, tremor, retrig,
-       panning...) sont ignorées : la note se déclenche quand
-       même, seul l'effet fin est absent.
+         Ixy tremor — x ticks de son, y ticks de silence, en cycle
+             (mémoire d'effet),
+         Kxy vibrato + glissement de volume (le paramètre est celui
+             du glissement de volume, le vibrato continue avec les
+             derniers réglages de Hxy/Uxy),
+         Lxy tone portamento + glissement de volume (idem, avec la
+             dernière vitesse de Gxx),
+         Qxy retrigger — toutes les y ticks, avec variation de
+             volume x (0-F, voir retriggerChannel dans s3m.c),
+         Rxy tremolo — oscillation du volume (x vitesse, y profondeur),
+         Uxy vibrato fin — comme Hxy avec une profondeur divisée par 4,
+         Sxy effets spéciaux :
+             S1x glissando (tone portamento par demi-tons),
+             S2x finetune (c2spd de la voie, table de Scream Tracker 3),
+             S3x / S4x forme d'onde du vibrato / tremolo (0 sinus,
+                 1 rampe, 2 carré, 3 aléatoire ; +4 = phase non remise
+                 à zéro à chaque note),
+             SBx boucle de motif (SB0 = début, SBx = x répétitions),
+             SCx coupure de note au tick x (SC0 = immédiate),
+             SDx note retardée au tick x,
+             SEx retard de ligne (la ligne est rejouée x fois).
+     - Mémoire d'effet (paramètre 00 = dernier paramètre non nul)
+       pour D, E/F, G, H, I, Q, R, S et O.
+     - Les effets "de ligne" (D, E/F, G, H, J, I, Q, R, SC...) ne
+       durent que la ligne où ils sont écrits : une voie sans cellule
+       sur une ligne ne poursuit pas l'effet de la ligne précédente.
+     - Ignorés (sans objet pour ce moteur mono sans filtre) : S0x
+       (filtre), S8x/SAx (panoramique), SFx (funk repeat), ainsi que
+       les extensions non standard (W, X, Y, Z...). La note se
+       déclenche quand même, seul l'effet fin est absent.
      - Bouclage automatique : à la fin de la table d'ordres,
        la lecture reprend au premier ordre valide — adapté
        à une musique de fond de démo qui tourne en boucle.
