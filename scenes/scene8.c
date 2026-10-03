@@ -140,6 +140,7 @@ static const char *statusText(int r)
     {
     case AUD_OK:         return "OK";
     case AUD_ERR_NOCARD: return "ERREUR: pas de carte son (BLASTER)";
+    case AUD_ERR_DSPVER: return "ERREUR: Sound Blaster 16 requise";
     case AUD_ERR_FILE:   return "ERREUR: musique.s3m introuvable";
     case AUD_ERR_FORMAT: return "ERREUR: fichier .s3m invalide/tronque";
     case AUD_ERR_MEM:    return "ERREUR: memoire insuffisante";
