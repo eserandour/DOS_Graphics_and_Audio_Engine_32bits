@@ -212,7 +212,7 @@ Toutes les scènes suivent la même structure, celle de `scenes/scene_template.c
 
 **Règles du timer**
 
-- On raisonne en **ticks** (70 Hz, 1 tick ≈ 14,3 ms). Les durées longues s'écrivent en ms et sont converties une fois par `MS_TO_TICKS` (arrondi au plus proche, minimum 1 tick ; `0` reste `0`, ce qui supprime la phase). La cadence s'écrit directement en ticks avec `FRAME_TICKS` : 1 = 70 Hz, 2 = 35 Hz, 3 = 23 Hz, 4 = 17,5 Hz.
+- On raisonne en **ticks** (70 Hz, 1 tick ≈ 14,3 ms). Les durées longues s'écrivent en ms et sont converties une fois par `MS_TO_TICKS` (arrondi au plus proche, minimum 1 tick ; `0` reste `0`, ce qui supprime la phase). La cadence s'écrit directement en ticks avec `FRAME_TICKS` : 1 = 70 Hz, 2 = 35 Hz, 3 = 23,3 Hz, 4 = 17,5 Hz.
 - `sceneStart` est posé une seule fois, au premier appel, avant `Init` : c'est l'unique référence de temps de la scène.
 - La fonction ne **bloque jamais** (ni `pause()` ni boucle d'attente) : `main.c` appelle `audioUpdate()` entre deux appels.
 - La cadence avance par **pas fixes** (`lastFrame += FRAME_TICKS`), sans dérive ; en cas de retard important, le retard est abandonné au lieu d'être rattrapé en rafale.
