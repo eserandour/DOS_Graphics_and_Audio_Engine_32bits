@@ -8,7 +8,7 @@
 
    Ce module ne connait ni le S3M ni le WAV : il sait
    uniquement dialoguer avec le DSP Sound Blaster (reset,
-   version, constante de temps, volume mixer) et avec le
+   version, fréquence de sortie, volume mixer) et avec le
    contrôleur DMA 8237 (canal 8 bits, mode auto-init en
    boucle, programmé une seule fois, sans réarmement à
    chaque IRQ — voir sbStartOutputLoop() plus bas et audio.c).
@@ -20,6 +20,13 @@
    I5 D1 H5 P330 T6). Si elle est absente ou mal formée,
    sbDetect() échoue et TOUT le reste du moteur audio doit
    rester silencieux sans jamais planter (voir audio.c).
+
+   CARTE REQUISE : DSP >= 4.00 (Sound Blaster 16 ou compatible,
+   DOSBox / DOSBox-X par défaut). Seul un DSP 4.xx sait régler la
+   fréquence de sortie en Hz exacts (commande 0x41), donc jouer
+   à 22050 Hz ; les DSP plus anciens ne savent produire que des
+   fréquences 1000000/n (22222 Hz au plus près), que ce moteur
+   refuse. sbIsDsp4() permet de tester la version après sbReset().
 
    BUFFER DMA — PARTICULARITÉ DU MODÈLE FLAT 32 BITS
    ---------------------------------------------------------
@@ -56,6 +63,7 @@
 #define SB_OK           0
 #define SB_ERR_NOENV    1   /* variable BLASTER absente/illisible */
 #define SB_ERR_NORESET  2   /* le DSP ne répond pas au reset      */
+#define SB_DSP_MIN_MAJOR 4  /* version DSP minimale (SB16)        */
 
 /* ---------------------------------------------------------
    Informations carte détectée (lecture seule pour audio.c)
@@ -79,10 +87,13 @@ int sbDetect(void);
    Retourne SB_OK ou SB_ERR_NORESET. */
 int sbReset(void);
 
-/* Programme la constante de temps (fréquence d'échantillonnage).
-   Compatible avec toutes les versions de DSP (commande 0x40),
-   contrairement à la commande 0x41 réservée aux DSP >= 4.xx. */
-void sbSetTimeConstant(unsigned char tc);
+/* Retourne 1 si le DSP détecté par sbReset() est en version
+   >= SB_DSP_MIN_MAJOR.00 (Sound Blaster 16), 0 sinon. */
+int sbIsDsp4(void);
+
+/* Règle la fréquence de sortie à 'hz' Hz exacts (commande DSP
+   0x41, DSP >= 4.00 uniquement : vérifier sbIsDsp4() avant). */
+void sbSetOutputRate(unsigned int hz);
 
 /* Positionne le volume du mixer matériel (s'il existe, SB Pro/16)
    au maximum. Sans effet — et sans erreur — sur un DSP sans
@@ -141,9 +152,9 @@ void sbAckIRQ(void);
    sur un buffer circulaire de 2*halfLen octets (physAddr =
    adresse physique du DÉBUT de ce buffer, les deux moitiés
    devant être contiguës — voir sbAllocDmaBuffer), puis démarre
-   le DSP en sortie 8 bits auto-init (commande 0x1C).
-   Nécessite un DSP >= 2.00 (Sound Blaster 2.0 ou plus récent) :
-   les commandes 0x48/0x1C n'existent pas sur un DSP 1.xx.
+   le DSP en sortie 8 bits mono non signée, auto-init, par la
+   commande SB16 0xC6, à la fréquence fixée par sbSetOutputRate().
+   Nécessite un DSP >= 4.00 (voir sbIsDsp4).
 
    Le DSP boucle ensuite indéfiniment sur ce buffer et lève une
    IRQ tous les halfLen octets, SANS AUCUN réarmement CPU entre

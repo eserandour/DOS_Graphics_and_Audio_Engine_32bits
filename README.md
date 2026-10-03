@@ -120,7 +120,7 @@ Chaque `.h` documente en tête de fichier le format de données et les conventio
 - **[Open Watcom 1.9](http://www.openwatcom.org/)** (`wcc386` + `wlink`), seule chaîne de compilation testée.
 - **[DOS/32A](http://sourceforge.net/projects/dos32a/)** : `STUB32A.EXE` à l'édition de liens (référencé par `LINK.RSP`), `DOS32A.EXE` à côté de `demo.exe` (ou dans le `PATH`) au lancement.
 - Un PC réel (386 ou plus) avec carte VGA, ou un émulateur DOS : [DOSBox](https://www.dosbox.com/), [DOSBox-X](https://dosbox-x.com/), [86Box](https://86box.net/).
-- Pour le son : carte **Sound Blaster 2.0** ou plus récente (DSP ≥ 2.00, pour la lecture DMA auto-init), ou compatible, configurée via la variable d'environnement `BLASTER` (ex. `SET BLASTER=A220 I5 D1 H5 P330 T6`). En son absence, le moteur audio se désactive proprement.
+- Pour le son : carte **Sound Blaster 16** (DSP ≥ 4.00) ou compatible, configurée via la variable d'environnement `BLASTER` (ex. `SET BLASTER=A220 I5 D1 H5 P330 T6`). C'est la carte émulée par défaut par DOSBox et DOSBox-X (`sbtype = sb16`). En son absence, ou avec une carte plus ancienne, le moteur audio se désactive proprement et la démo continue en silence.
 - Python 3, uniquement pour les scripts de `OUTILS/` (facultatif pour compiler/exécuter la démo) : Pillow pour `vgatool.py`, `gen_palettes.py`, `png2c.py`, `ttf2c.py` et les aperçus de `psf2c.py` ; `freetype-py` en plus pour `ttf2c.py` ; un compilateur C natif (gcc) pour `gen_palettes.py` et `s3m_audit.py` (plus `ffmpeg` avec libopenmpt pour ce dernier) ; `s3m_extract.py` n'utilise que la bibliothèque standard.
 
 ## Compilation
@@ -251,7 +251,7 @@ Toutes les scènes suivent la même structure, celle de `scenes/scene_template.c
 - Mode 13h uniquement (320×200, 256 couleurs).
 - Lecteur S3M : échantillons PCM non compressés uniquement, les voies sont mixées en mono, tick de durée entière comme ST3/libopenmpt (option `S3M_EXACT_TICKS` pour une durée exacte). Les effets sont vérifiés contre libopenmpt par `OUTILS/s3m_audit.py`. Tous les effets standard de Scream Tracker 3 sont pris en charge (A, B, C, D, E, F, G, H, I, J, K, L, O, Q, R, T, U, V, et S1x, S2x, S3x, S4x, SBx, SCx, SDx, SEx), avec mémoire d'effet. Sont ignorés (la note se déclenche quand même) : le filtre (S0x), le panoramique (S8x, SAx), le funk repeat (SFx) et les extensions non standard ; ne sont pas non plus reproduits certains comportements très particuliers de ST3 (volume global appliqué seulement aux notes dont le volume change, note coupée par SCx « figée » puis reprise par un E/F/G/H...) ; l'en-tête de `s3m.h` donne le détail exact. La fidélité du vibrato et du tremolo est une approximation de Scream Tracker 3, suffisante pour la démo mais pas bit-exacte.
 - Jusqu'à `S3M_MAX_CHANNELS` (16) voies mixées et `WAV_MAX_VOICES` (4) effets simultanés.
-- Sound Blaster : DSP ≥ 2.00 requis (sortie DMA 8 bits auto-init, mono, 22 050 Hz).
+- Sound Blaster 16 (DSP ≥ 4.00) requise : sortie DMA 8 bits mono, auto-init, à 22 050 Hz exacts (commande `0x41`). Les cartes plus anciennes (SB 2.0, SB Pro) ne savent produire que 1 000 000 / n Hz, soit 22 222 Hz au plus près : le moteur les refuse plutôt que de jouer à une autre fréquence.
 - Testé uniquement avec Open Watcom 1.9 + DOS/32A.
 
 ## Licence

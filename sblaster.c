@@ -194,10 +194,23 @@ int sbReset(void)
     return SB_OK;
 }
 
-void sbSetTimeConstant(unsigned char tc)
+int sbIsDsp4(void)
 {
-    dspWrite(0x40);
-    dspWrite(tc);
+    return (sbVersionMajor >= SB_DSP_MIN_MAJOR) ? 1 : 0;
+}
+
+/* ---------------------------------------------------------
+   sbSetOutputRate — fréquence de sortie exacte (SB16)
+   ---------------------------------------------------------
+   La commande 0x41 (DSP >= 4.00) prend la fréquence en Hz sur
+   16 bits, octet FORT d'abord (contrairement aux longueurs,
+   envoyées octet faible d'abord).
+   --------------------------------------------------------- */
+void sbSetOutputRate(unsigned int hz)
+{
+    dspWrite(0x41);
+    dspWrite((unsigned char)((hz >> 8) & 0xFF));   /* octet fort   */
+    dspWrite((unsigned char)(hz & 0xFF));          /* octet faible */
 }
 
 void sbSetMixerVolumeMax(void)
@@ -392,11 +405,14 @@ void sbAckIRQ(void)
    initialize" sur un buffer circulaire de 2*halfLen octets
    (les deux moitiés A+B, contiguës en mémoire ET en adresse
    physique — voir sbAllocDmaBuffer), puis démarre le DSP en
-   sortie DAC 8 bits auto-init (commande 0x1C).
+   sortie DAC 8 bits auto-init par la commande SB16 0xC6
+   (8 bits, auto-init, FIFO activée), mode 0x00 (mono, non
+   signé), suivie de la taille de bloc. Fréquence réglée au
+   préalable par sbSetOutputRate() (commande 0x41).
 
    Le DSP lève ensuite une IRQ automatiquement tous les
-   halfLen octets (taille de bloc réglée par la commande
-   0x48), en bouclant indéfiniment sur le buffer sans AUCUNE
+   halfLen octets (taille de bloc), en bouclant indéfiniment
+   sur le buffer sans AUCUNE
    intervention du CPU entre deux moitiés : contrairement au
    mode simple-cycle (ancienne commande 0x14, réarmée à la
    main à chaque IRQ), il n'y a ici aucun micro-trou entre
@@ -426,14 +442,14 @@ void sbStartOutputLoop(unsigned long physAddr, unsigned int halfLen)
 
     /* Taille de bloc = une moitié : une IRQ tous les halfLen
        octets, exactement à la frontière entre A et B. */
-    dspWrite(0x48);
+    /* 0xC6 = sortie 8 bits, auto-init, FIFO.
+       Mode 0x00 = mono, échantillons non signés (bit 4 : signé,
+       bit 5 : stéréo). Puis taille de bloc - 1, octet faible
+       d'abord. */
+    dspWrite(0xC6);
+    dspWrite(0x00);
     dspWrite((unsigned char)(blockCnt & 0xFF));
     dspWrite((unsigned char)((blockCnt >> 8) & 0xFF));
-
-    /* Commande DSP 0x1C : sortie DAC 8 bits, AUTO-INIT.
-       Pas de paramètre de longueur : le DSP boucle sur le
-       compte déjà programmé au contrôleur DMA ci-dessus. */
-    dspWrite(0x1C);
 }
 
 /* ---------------------------------------------------------

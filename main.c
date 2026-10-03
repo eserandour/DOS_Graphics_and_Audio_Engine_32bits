@@ -88,7 +88,8 @@ int main(void)
     installTimer();
     installKeyboard();
 
-    /* Si aucune carte son n'est détectée (BLASTER absent, DSP muet),
+    /* Si aucune carte son compatible n'est détectée (BLASTER absent,
+       DSP muet, ou DSP antérieur à 4.00 : Sound Blaster 16 requise),
        audioInit() échoue proprement : playMusic()/playSound() restent
        de simples no-op et la démo continue normalement en silence. */
     audioInit();

@@ -5,8 +5,8 @@
    AUDIO.H — Moteur audio (musique S3M + effets WAV)
    =========================================================
    Environnement : Open Watcom 1.9, DOS
-   Carte         : Sound Blaster (ou compatible) détectée
-                   via la variable d'environnement BLASTER.
+   Carte         : Sound Blaster 16 (DSP >= 4.00) ou compatible,
+                   détectée via la variable d'environnement BLASTER.
 
    PRINCIPE
    --------
@@ -50,8 +50,9 @@
 
    ROBUSTESSE
    ----------
-   Si aucune carte compatible n'est détectée (BLASTER absent
-   ou DSP ne répondant pas), audioInit() échoue proprement :
+   Si aucune carte compatible n'est détectée (BLASTER absent,
+   DSP ne répondant pas, ou DSP antérieur à 4.00 — voir
+   AUD_ERR_DSPVER), audioInit() échoue proprement :
    playMusic()/playSound() deviennent alors des no-op sans
    jamais planter, et le reste de la démo (vidéo, timer,
    clavier) continue de fonctionner normalement.
@@ -71,8 +72,13 @@
 #define AUD_ERR_MEM     2   /* mémoire insuffisante                */
 #define AUD_ERR_FILE    3   /* fichier introuvable/inaccessible    */
 #define AUD_ERR_FORMAT  4   /* fichier présent mais invalide/tronqué */
+#define AUD_ERR_DSPVER  5   /* carte trop ancienne : DSP < 4.00, pas
+                               de sortie à 22050 Hz exacts         */
 
-/* Fréquence de mixage du moteur : 22050 Hz */
+/* Fréquence de sortie et de mixage : 22050 Hz exacts, réglés par
+   la commande DSP 0x41 (SB16, DSP >= 4.00). Le moteur ne joue
+   jamais à une autre fréquence : sur une carte plus ancienne,
+   audioInit() échoue avec AUD_ERR_DSPVER. */
 #define MIX_RATE  22050UL
 
 /* ---------------------------------------------------------

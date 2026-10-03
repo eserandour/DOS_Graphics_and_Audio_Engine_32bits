@@ -98,8 +98,6 @@ static void mixBuffer(unsigned char *buf, unsigned int n)
 
 int audioInit(void)
 {
-    unsigned char tc;
-
     audioReady = 0;
     needFillA = 0;
     needFillB = 0;
@@ -110,6 +108,12 @@ int audioInit(void)
        (voir audio.h, section ROBUSTESSE). */
     if (sbDetect() != SB_OK) return AUD_ERR_NOCARD;
     if (sbReset()  != SB_OK) return AUD_ERR_NOCARD;
+
+    /* 22050 Hz exacts exigent la commande 0x41, donc un DSP >= 4.00
+       (Sound Blaster 16). Carte plus ancienne : on reste en silence
+       plutôt que de jouer à une autre fréquence. Testé avant toute
+       allocation, il n'y a donc rien à libérer ici. */
+    if (!sbIsDsp4()) return AUD_ERR_DSPVER;
 
     /* Mixer matériel au maximum (gain analogique) : c'est Gv/Mv/
        Vxx côté S3M qui décideront ensuite du niveau réel du
@@ -138,20 +142,13 @@ int audioInit(void)
     memset(bufA, 128, MIX_BUFFER_SAMPLES);
     memset(bufB, 128, MIX_BUFFER_SAMPLES);
 
-    /* Les moteurs S3M et WAV ont besoin de connaître la fréquence
-       de mixage pour convertir leurs pas de lecture (note -> step,
-       rééchantillonnage) — voir s3mInit/wavInit. */
+    /* Fréquence de sortie : MIX_RATE (22050 Hz) exacts, commande
+       DSP 0x41. Les moteurs S3M et WAV en ont besoin pour leurs pas
+       de lecture (note -> step, rééchantillonnage) — voir
+       s3mInit/wavInit. */
+    sbSetOutputRate((unsigned int)MIX_RATE);
     s3mInit(MIX_RATE);
     wavInit(MIX_RATE);
-
-    /* Constante de temps DSP : formule standard Sound Blaster,
-       tc = 256 - 1000000/fréquence(Hz). La commande 0x40 est
-       comprise par toutes les versions de DSP (voir sblaster.c) ;
-       la sortie auto-init lancée plus bas exige en revanche un
-       DSP >= 2.00. Le diviseur étant entier, tc = 211 donne en
-       réalité 1000000/45 = 22222 Hz pour MIX_RATE = 22050. */
-    tc = (unsigned char)(256U - (unsigned int)(1000000UL / MIX_RATE));
-    sbSetTimeConstant(tc);
 
     /* Branche notre ISR sur l'IRQ détectée et la démasque au PIC. */
     sbInstallIRQ(audioISR);
